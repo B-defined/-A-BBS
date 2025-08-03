@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>500</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>BookStore PyQt</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QStackedWidget" name="stackedWidget">
+      <property name="currentIndex">
+       <number>1</number>
+      </property>
+      <widget class="QWidget" name="page_login">
+       <layout class="QVBoxLayout">
+        <item>
+         <widget class="QLabel" name="lbl_login_title">
+          <property name="text">
+           <string>Đăng nhập</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="login_email">
+          <property name="placeholderText">
+           <string>Email</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="login_password">
+          <property name="echoMode">
+           <enum>QLineEdit::Password</enum>
+          </property>
+          <property name="placeholderText">
+           <string>Mật khẩu</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_login">
+          <property name="text">
+           <string>Đăng nhập</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_go_register">
+          <property name="text">
+           <string>Chưa có tài khoản? Đăng ký</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="page_register">
+       <layout class="QVBoxLayout">
+        <item>
+         <widget class="QLabel" name="lbl_register_title">
+          <property name="text">
+           <string>Đăng ký</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="reg_username">
+          <property name="placeholderText">
+           <string>Tên người dùng</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="reg_email">
+          <property name="placeholderText">
+           <string>Email</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="reg_password">
+          <property name="echoMode">
+           <enum>QLineEdit::Password</enum>
+          </property>
+          <property name="placeholderText">
+           <string>Mật khẩu</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_register">
+          <property name="text">
+           <string>Đăng ký</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_back_login">
+          <property name="text">
+           <string>Quay lại</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="page_home">
+       <layout class="QVBoxLayout">
+        <item>
+         <widget class="QLabel" name="lbl_home_title">
+          <property name="text">
+           <string>Danh sách sách</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout">
+          <item>
+           <widget class="QLineEdit" name="search_home"/>
+          </item>
+          <item>
+           <widget class="QPushButton" name="btn_search_home">
+            <property name="text">
+             <string>Tìm</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QListWidget" name="list_home_books"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="page_feedback">
+       <layout class="QVBoxLayout">
+        <item>
+         <widget class="QLabel" name="lbl_fb_title">
+          <property name="text">
+           <string>Gửi Feedback</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTextEdit" name="feedback_text"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_send_feedback">
+          <property name="text">
+           <string>Gửi</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="list_feedbacks"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="page_manage">
+       <layout class="QVBoxLayout">
+        <item>
+         <widget class="QLabel" name="lbl_manage_title">
+          <property name="text">
+           <string>Quản lý sách</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="book_title">
+          <property name="placeholderText">
+           <string>Tiêu đề</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="book_author">
+          <property name="placeholderText">
+           <string>Tác giả</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="book_desc">
+          <property name="placeholderText">
+           <string>Mô tả</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_add_book">
+          <property name="text">
+           <string>Thêm sách</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="list_manage_books"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
