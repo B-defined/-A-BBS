@@ -1,0 +1,242 @@
+/* --- Global Styles & Theme Variables --- */
+:root {
+    --primary-color: #4a4e69;
+    --secondary-color: #22223b;
+    --background-color: #f4f4f9;
+    --page-background-color: #ffffff;
+    --text-color: #343a40;
+    --border-color: #eee;
+    --shadow-color: rgba(0,0,0,0.05);
+    --input-background: #fff;
+    --input-border: #ddd;
+    --navbar-background-color: var(--primary-color);
+}
+
+[data-theme='dark'] {
+    --primary-color: #9a8c98;
+    --secondary-color: #c9ada7;
+    --background-color: #1a1a1d;
+    --page-background-color: #2c2c34;
+    --text-color: #f2e9e4;
+    --border-color: #4a4e69;
+    --shadow-color: rgba(0,0,0,0.2);
+    --input-background: #4a4e69;
+    --input-border: #9a8c98;
+    --navbar-background-color: #483d8b; /* Dark Slate Blue */
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: var(--background-color);
+    color: var(--text-color);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.3s, color 0.3s;
+}
+main {
+    flex: 1;
+}
+
+/* --- Header, Footer & Nav --- */
+header {
+    background: var(--navbar-background-color);
+    color: #fff;
+    padding: 20px 0;
+    text-align: center;
+    transition: background-color 0.3s;
+}
+
+.navbar {
+    background: var(--navbar-background-color) !important;
+    padding: 0.5rem 1rem;
+    transition: background-color 0.3s;
+}
+
+footer {
+    background: var(--secondary-color);
+}
+#search-form {
+    width: 50%;
+    min-width: 250px;
+}
+.form-control {
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border-color: var(--input-border);
+}
+.form-control:focus {
+    background-color: var(--input-background);
+    color: var(--text-color);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.25rem rgba(154, 140, 152, 0.25); /* Adjusted shadow for both themes */
+}
+
+/* --- Page & Layout with Transitions --- */
+.container {
+    width: 95%;
+    max-width: 1400px;
+    margin: 20px auto;
+}
+.page {
+    background: var(--page-background-color);
+    padding: 25px;
+    box-shadow: 0 4px 8px var(--shadow-color);
+    border-radius: 8px;
+    transition: opacity 0.4s ease-in-out;
+    opacity: 1;
+}
+.page.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.truly-hidden {
+    display: none !important;
+}
+
+/* --- Book Card & Section --- */
+.book-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px;
+    justify-content: center;
+}
+.book {
+    background: var(--page-background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 240px;
+    text-align: center;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.book:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 8px 15px var(--shadow-color);
+}
+.book img {
+    width: 150px;
+    height: 220px;
+    object-fit: cover;
+    border-radius: 5px;
+    margin: 0 auto;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    cursor: pointer;
+}
+.book h3 {
+    font-size: 1.1em;
+    color: var(--text-color);
+    margin: 15px 0 5px 0;
+    height: 48px;
+    overflow: hidden;
+    cursor: pointer;
+}
+.book .author {
+    font-size: 0.9em;
+    color: #888;
+    height: 36px;
+    overflow: hidden;
+}
+
+/* --- Admin-only UI --- */
+.admin-controls {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    display: flex;
+    gap: 5px;
+    background: rgba(255,255,255,0.8);
+    padding: 5px;
+    border-radius: 5px;
+    z-index: 10;
+}
+.admin-controls button { background: none; border: none; cursor: pointer; font-size: 1.1em; padding: 2px 5px; }
+.admin-controls .edit-btn { color: #007bff; }
+.admin-controls .delete-btn { color: #dc3545; }
+
+/* --- Book Detail Page --- */
+#book-detail-content { display: flex; flex-wrap: wrap; gap: 30px; }
+.book-detail-img { flex: 1; min-width: 250px; text-align: center; }
+.book-detail-info { flex: 2; min-width: 300px; }
+.book-detail-info .description { text-align: justify; line-height: 1.6; }
+
+/* --- Auth Forms --- */
+.auth-container { max-width: 450px; margin: auto; }
+
+/* --- Feedback Inbox --- */
+#feedback-list .card { margin-bottom: 15px; background-color: var(--background-color); }
+#feedback-list .card-header { font-weight: bold; background-color: var(--page-background-color); }
+
+/* --- Manage Books Form --- */
+.add-book-form { max-width: 700px; margin: 20px auto; padding: 20px; background: var(--background-color); border-radius: 8px; }
+
+/* --- Toast Notification Styles --- */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1056;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.toast-notification {
+    min-width: 250px;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    color: #fff;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+.toast-notification.show { opacity: 1; transform: translateX(0); }
+.toast-notification.success { background-color: #28a745; }
+.toast-notification.error { background-color: #dc3545; }
+.toast-notification.info { background-color: #17a2b8; }
+
+/* --- Navbar Dropdown Menu Customization --- */
+.navbar .dropdown-menu {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.navbar .dropdown-item {
+    color: #212529;
+}
+.navbar .dropdown-item:hover,
+.navbar .dropdown-item:focus {
+    color: #16181b;
+    background-color: #f8f9fa;
+}
+
+/* --- About Page Styles --- */
+.team-member { text-align: center; margin-bottom: 20px; }
+.team-member img {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--border-color);
+    margin-bottom: 15px;
+    box-shadow: 0 4px 8px var(--shadow-color);
+}
+#about img { max-width: 100%; border-radius: 8px; }
+
+/* --- Settings Page Styles --- */
+.settings-block {
+    background-color: var(--background-color);
+    padding: 25px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    border: 1px solid var(--border-color);
+}
+.settings-block h5 {
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    color: var(--primary-color);
+}
