@@ -73,8 +73,19 @@
                     <form id="login-form-element" class="mt-4">
                         <input type="email" id="login-email" placeholder="Email" required class="form-control">
                         <input type="password" id="login-password" placeholder="Mật khẩu" required class="form-control mt-3">
+                        <a href="#" class="d-block text-end mt-2" onclick="showPage('forgot-password')">Quên mật khẩu?</a>
                         <button type="submit" class="btn btn-primary w-100 mt-3">Đăng nhập</button>
                     </form>
+                    
+                    <div class="d-flex align-items-center my-3">
+                        <hr class="flex-grow-1">
+                        <span class="px-2 text-muted">hoặc</span>
+                        <hr class="flex-grow-1">
+                    </div>
+                    <button id="google-login-btn" class="btn btn-light w-100 border">
+                        <i class="fab fa-google"></i> Tiếp tục với Google
+                    </button>
+                    
                     <a class="d-block text-center mt-3" href="#" onclick="toggleAuth()">*Chưa có tài khoản? Đăng ký</a>
                 </div>
                 <div id="registerForm" class="truly-hidden">
@@ -87,6 +98,18 @@
                     </form>
                     <a class="d-block text-center mt-3" href="#" onclick="toggleAuth()">*Đã có tài khoản? Đăng nhập</a>
                 </div>
+            </div>
+        </section>
+
+        <section id="forgot-password" class="page hidden truly-hidden">
+            <div class="auth-container">
+                <h2 class="text-center">Đặt Lại Mật Khẩu</h2>
+                <p class="text-center text-muted mt-2">Nhập email của bạn để nhận hướng dẫn đặt lại mật khẩu.</p>
+                <form id="forgot-password-form" class="mt-4">
+                    <input type="email" id="forgot-password-email" placeholder="Email đã đăng ký" required class="form-control">
+                    <button type="submit" class="btn btn-primary w-100 mt-3">Gửi Hướng Dẫn</button>
+                </form>
+                <a class="d-block text-center mt-3" href="#" onclick="showPage('register')">Quay lại Đăng nhập</a>
             </div>
         </section>
 
@@ -129,7 +152,17 @@
                     </div>
                     <div class="settings-block">
                         <h5>Bảo mật</h5>
-                        <button class="btn btn-secondary" disabled>Đổi mật khẩu (Sắp có)</button>
+                        <form id="change-password-form">
+                            <div class="mb-3">
+                                <label for="new-password" class="form-label">Mật khẩu mới</label>
+                                <input type="password" id="new-password" class="form-control" required minlength="6">
+                            </div>
+                            <div class="mb-3">
+                                <label for="confirm-new-password" class="form-label">Xác nhận mật khẩu mới</label>
+                                <input type="password" id="confirm-new-password" class="form-control" required minlength="6">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Đổi Mật Khẩu</button>
+                        </form>
                     </div>
                     <div class="settings-block">
                         <h5>Giao diện</h5>
@@ -191,25 +224,21 @@
 
     <script>
       const firebaseConfig = {
-        apiKey: "AIzaSyBrxunXPnVJbFbmo59UI4trmu8bd8ffRms",
-        authDomain: "billey-book-store.firebaseapp.com",
-        projectId: "billey-book-store",
-        storageBucket: "billey-book-store.appspot.com",
-        messagingSenderId: "428737796619",
-        appId: "1:428737796619:web:4cf67b17e7292c5535c50e",
-        measurementId: "G-E21CZSTZN0"
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID",
       };
 
-      // Khởi tạo Firebase
       firebase.initializeApp(firebaseConfig);
-      
-      // Tạo các biến để script.js có thể sử dụng
       const auth = firebase.auth();
       const db = firebase.firestore();
     </script>
-
     <script src="script.js"></script>
-    <main class="container">
-    </main>
+    <script>
+        (function(){if(!window.chatbase||window.chatbase("getState")!=="initialized"){window.chatbase=(...arguments)=>{if(!window.chatbase.q){window.chatbase.q=[]}window.chatbase.q.push(arguments)};window.chatbase=new Proxy(window.chatbase,{get(target,prop){if(prop==="q"){return target.q}return(...args)=>target(prop,...args)}})}const onLoad=function(){const script=document.createElement("script");script.src="https://www.chatbase.co/embed.min.js";script.id="2BqH8LMVQBreDCcS08ttK";script.domain="www.chatbase.co";document.body.appendChild(script)};if(document.readyState==="complete"){onLoad()}else{window.addEventListener("load",onLoad)}})();
+    </script>
 </body>
 </html>

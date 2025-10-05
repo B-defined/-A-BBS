@@ -1,4 +1,4 @@
-// File: script.js (Phiên bản đã sửa lỗi logic hiển thị)
+// File: script.js
 
 // --- CONFIG & DOM ELEMENTS ---
 const SEARCH_API_URL = 'https://openlibrary.org/search.json';
@@ -11,7 +11,8 @@ function initializeDOMElements() {
         'search-form', 'search-input', 'home-books', 'browse-books', 'book-detail', 'browse-title', 'loader',
         'login-link', 'user-info', 'user-dropdown', 'register-form-element', 'login-form-element', 'feedback-form',
         'feedback-list', 'book-form', 'clear-form-btn', 'submit-feedback-link', 'inbox-link', 'add-book-link',
-        'landing', 'theme-toggle-btn', 'admin-upgrade-btn', 'admin-code-input'
+        'landing', 'theme-toggle-btn', 'admin-upgrade-btn', 'admin-code-input', 'forgot-password-form', 
+        'change-password-form' // Thêm ID của form mới
     ];
     ids.forEach(id => {
         const camelCaseId = id.replace(/-([a-z])/g, g => g[1].toUpperCase());
@@ -46,7 +47,6 @@ function showPage(pageId) {
         return showToast('Bạn không có quyền truy cập trang này.', 'error');
     }
 
-    // Hide the current page
     if (currentPageId) {
         const currentPageElement = document.getElementById(currentPageId);
         if (currentPageElement) {
@@ -59,7 +59,6 @@ function showPage(pageId) {
         }
     }
 
-    // Show the new page
     const newPageElement = document.getElementById(pageId);
     if (newPageElement) {
         newPageElement.classList.remove('truly-hidden');
@@ -109,11 +108,20 @@ function displayBooks(books, container) {
     container.innerHTML = '';
     const isAdmin = window.currentUserRole === 'admin';
     
-    // Logic hiển thị sách... (Giữ nguyên)
+    books.forEach(book => {
+        const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : 'https://via.placeholder.com/240x360.png?text=No+Image';
+        const bookElement = document.createElement('div');
+        bookElement.className = 'book';
+        bookElement.innerHTML = `
+            ${isAdmin ? `<div class="admin-controls"><button class="edit-btn" onclick="handleEditBook('${book.key}')">✏️</button><button class="delete-btn" onclick="handleDeleteBook('${book.key}')">🗑️</button></div>` : ''}
+            <img src="${coverUrl}" alt="${book.title}" onclick="showBookDetail('${book.key}')">
+            <h3 onclick="showBookDetail('${book.key}')">${book.title}</h3>
+            <p class="author">${book.author_name ? book.author_name.join(', ') : 'Unknown Author'}</p>
+        `;
+        container.appendChild(bookElement);
+    });
 }
-// File: script.js
 
-// THAY THẾ TOÀN BỘ HÀM CŨ BẰNG HÀM MỚI NÀY
 async function showBookDetail(bookKey) {
     const ls = { get: (key, defaultValue = []) => JSON.parse(localStorage.getItem(key)) || defaultValue };
     const editedBooks = ls.get('bookstore_editedBooks', {});
@@ -139,9 +147,6 @@ async function showBookDetail(bookKey) {
         coverUrl = editedData?.coverUrl || (bookDetails.covers?.[0] ? `https://covers.openlibrary.org/b/id/${bookDetails.covers[0]}-L.jpg` : 'https://via.placeholder.com/250x380.png?text=No+Image');
     }
     
-    // --- THAY ĐỔI BẮT ĐẦU TỪ ĐÂY ---
-
-    // Tạo URL tìm kiếm sách trên Tiki
     const tikiSearchUrl = `https://tiki.vn/search?q=${encodeURIComponent(title)}`;
 
     DOM.bookDetail.innerHTML = `
@@ -157,7 +162,6 @@ async function showBookDetail(bookKey) {
                 </div>
                 <h3>Giới thiệu</h3>
                 <div class="description">${description.replace(/\n/g, '<br>')}</div>
-                
                 <div class="mt-4">
                     <button class="btn btn-secondary" onclick="showPage('home')">Quay lại</button>
                     <a href="${tikiSearchUrl}" target="_blank" class="btn btn-primary ms-2">
@@ -167,18 +171,8 @@ async function showBookDetail(bookKey) {
             </div>
         </div>`;
     
-    // --- KẾT THÚC THAY ĐỔI ---
-
     showPage('book-detail');
 }
-
-
-// --- BOOK MANAGEMENT (LOCAL) ---
-// (Các hàm này vẫn dùng localStorage vì chỉ là dữ liệu tạm thời/tùy chỉnh của admin)
-function handleEditBook(bookKey) { /* ... */ }
-function handleBookFormSubmit(event) { /* ... */ }
-async function handleDeleteBook(bookKey) { /* ... */ }
-
 
 // --- FEEDBACK MANAGEMENT with FIREBASE ---
 async function handleFeedbackSubmit(event) {
@@ -231,9 +225,8 @@ async function displayFeedbacks() {
     }
 }
 
-
 // --- AUTHENTICATION with FIREBASE ---
-let currentUserRole = null; // Biến toàn cục để lưu vai trò của người dùng
+let currentUserRole = null; 
 
 function setButtonLoading(button, isLoading, text = 'Đang xử lý...') {
     if(!button) return;
@@ -290,26 +283,103 @@ async function handleLogin(event) {
     }
 }
 
+async function handleGoogleLogin() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+        await auth.signInWithPopup(provider);
+        showToast('Đăng nhập với Google thành công!', 'success');
+    } catch (error) {
+        console.error("Lỗi đăng nhập Google:", error);
+        showToast(error.message, 'error');
+    }
+}
+
+async function handleForgotPassword(event) {
+    event.preventDefault();
+    const form = event.target;
+    const button = form.querySelector('button[type="submit"]');
+    const email = form.querySelector('#forgot-password-email').value;
+
+    setButtonLoading(button, true, "Đang gửi...");
+
+    try {
+        await auth.sendPasswordResetEmail(email);
+        showToast('Email hướng dẫn đã được gửi! Vui lòng kiểm tra hòm thư.', 'success');
+        form.reset();
+        showPage('register');
+    } catch (error) {
+        console.error("Lỗi gửi email reset:", error);
+        if (error.code === 'auth/user-not-found') {
+            showToast('Lỗi: Không tìm thấy người dùng với email này.', 'error');
+        } else {
+            showToast('Đã có lỗi xảy ra. Vui lòng thử lại.', 'error');
+        }
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
+async function handleChangePassword(event) {
+    event.preventDefault();
+    const form = event.target;
+    const button = form.querySelector('button[type="submit"]');
+    const newPassword = form.querySelector('#new-password').value;
+    const confirmPassword = form.querySelector('#confirm-new-password').value;
+
+    if (newPassword.length < 6) {
+        showToast('Mật khẩu mới phải có ít nhất 6 ký tự.', 'error');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showToast('Mật khẩu xác nhận không khớp!', 'error');
+        return;
+    }
+
+    setButtonLoading(button, true, "Đang cập nhật...");
+
+    try {
+        const user = auth.currentUser;
+        await user.updatePassword(newPassword);
+        showToast('Đổi mật khẩu thành công!', 'success');
+        form.reset();
+    } catch (error) {
+        console.error("Lỗi đổi mật khẩu:", error);
+        if (error.code === 'auth/requires-recent-login') {
+            showToast('Để bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi đổi mật khẩu.', 'error');
+        } else {
+            showToast('Có lỗi xảy ra, không thể đổi mật khẩu.', 'error');
+        }
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
 function handleLogout() {
     auth.signOut();
     showToast('Bạn đã đăng xuất.', 'info');
 }
 
-// Lắng nghe sự thay đổi trạng thái đăng nhập
 auth.onAuthStateChanged(async user => {
     if (user) {
-        // User đã đăng nhập
-        const userDoc = await db.collection("users").doc(user.uid).get();
-        if (userDoc.exists) {
-            const userData = userDoc.data();
-            currentUserRole = userData.role; // Cập nhật vai trò
-            updateUIForUser(userData);
-        } else {
-            // Trường hợp hiếm: có user auth nhưng không có data trong firestore
-            handleLogout();
+        const userDocRef = db.collection("users").doc(user.uid);
+        let userDoc = await userDocRef.get();
+
+        if (!userDoc.exists) {
+            const newUser = {
+                username: user.displayName || user.email.split('@')[0],
+                email: user.email,
+                role: "user"
+            };
+            await userDocRef.set(newUser);
+            userDoc = await userDocRef.get();
         }
+
+        const userData = userDoc.data();
+        currentUserRole = userData.role;
+        updateUIForUser(userData);
+        
     } else {
-        // User đã đăng xuất
         currentUserRole = null;
         updateUIForGuest();
     }
@@ -328,9 +398,9 @@ function updateUIForUser(userData) {
     DOM.submitFeedbackLink.classList.toggle('truly-hidden', isAdmin);
     DOM.addBookLink.classList.toggle('truly-hidden', !isAdmin);
     
-    // Ẩn trang đăng ký/đăng nhập nếu đang hiển thị
     document.getElementById('landing').classList.add('truly-hidden');
     document.getElementById('register').classList.add('truly-hidden');
+    document.getElementById('forgot-password').classList.add('truly-hidden');
 
     initializeApp(true).then(() => showPage('home'));
 }
@@ -343,8 +413,7 @@ function updateUIForGuest() {
     document.querySelectorAll('.admin-only, #inbox-link, #add-book-link').forEach(el => el.classList.add('truly-hidden'));
     DOM.submitFeedbackLink.classList.remove('truly-hidden');
     
-    // Ẩn tất cả các trang nội dung chính
-    ['home', 'browse', 'book-detail', 'about', 'settings', 'submit-feedback', 'feedback-inbox', 'manage-books'].forEach(id => {
+    ['home', 'browse', 'book-detail', 'about', 'settings', 'submit-feedback', 'feedback-inbox', 'manage-books', 'forgot-password'].forEach(id => {
         const page = document.getElementById(id);
         if (page) {
             page.classList.add('hidden');
@@ -352,10 +421,9 @@ function updateUIForGuest() {
         }
     });
 
-    // **Hiển thị rõ ràng trang landing và register**
     document.getElementById('landing').classList.remove('truly-hidden', 'hidden');
     document.getElementById('register').classList.remove('truly-hidden', 'hidden');
-    currentPageId = null; // Reset trang hiện tại
+    currentPageId = null; 
 }
 
 function displayUserSettings() {
@@ -387,10 +455,10 @@ async function handleAdminUpgrade() {
     try {
         const userRef = db.collection("users").doc(auth.currentUser.uid);
         await userRef.update({ role: "admin" });
-        currentUserRole = 'admin'; // Cập nhật vai trò ngay lập tức
+        currentUserRole = 'admin';
         showToast('Nâng cấp tài khoản thành Admin thành công!', 'success');
-        displayUserSettings(); // Cập nhật lại trang settings
-        updateUIForUser((await userRef.get()).data()); // Cập nhật lại toàn bộ UI
+        displayUserSettings();
+        updateUIForUser((await userRef.get()).data());
     } catch (error) {
         showToast('Đã xảy ra lỗi khi nâng cấp.', 'error');
     } finally {
@@ -398,21 +466,20 @@ async function handleAdminUpgrade() {
     }
 }
 
-
 function toggleAuth() { 
     document.getElementById('registerForm').classList.toggle('truly-hidden');
     document.getElementById('loginForm').classList.toggle('truly-hidden');
 }
 
-
-// --- INITIALIZATION & EVENT LISTENERS ---
 async function initializeApp(fetchNew = true) {
     const cachedBooks = JSON.parse(localStorage.getItem('api_cache') || '[]');
     if (fetchNew || cachedBooks.length === 0) {
         const featuredBooks = await searchBooksAPI('vietnamese literature');
         localStorage.setItem('api_cache', JSON.stringify(featuredBooks));
+        displayBooks(featuredBooks, DOM.homeBooks);
+    } else {
+        displayBooks(cachedBooks, DOM.homeBooks);
     }
-    // ...
 }
 
 function applyTheme(theme) {
@@ -435,6 +502,9 @@ function addAllEventListeners() {
 
     DOM.registerFormElement.addEventListener('submit', handleRegister);
     DOM.loginFormElement.addEventListener('submit', handleLogin);
+    document.getElementById('google-login-btn').addEventListener('click', handleGoogleLogin);
+    DOM.forgotPasswordForm.addEventListener('submit', handleForgotPassword);
+    DOM.changePasswordForm.addEventListener('submit', handleChangePassword); // Thêm event listener mới
     DOM.feedbackForm.addEventListener('submit', handleFeedbackSubmit);
     DOM.themeToggleButton.addEventListener('click', () => {
         const newTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
@@ -450,5 +520,4 @@ document.addEventListener('DOMContentLoaded', () => {
     addAllEventListeners();
     const savedTheme = localStorage.getItem('bookstore_theme') || 'light';
     applyTheme(savedTheme);
-    // auth.onAuthStateChanged sẽ tự động xử lý việc hiển thị UI ban đầu
 });
