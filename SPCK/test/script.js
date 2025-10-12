@@ -3,17 +3,16 @@
 // --- CONFIG & DOM ELEMENTS ---
 const SEARCH_API_URL = 'https://openlibrary.org/search.json';
 const BOOKS_API_URL = 'https://openlibrary.org';
-const POPULAR_KEYWORDS = ["Sách văn học", "Tiểu thuyết", "Truyện ngắn", "Sách kinh tế", "Kỹ năng sống", "Harry Potter", "Lịch sử Việt Nam"];
 const DOM = {};
 
 // --- INITIALIZE DOM ELEMENTS ---
 function initializeDOMElements() {
     const ids = [
-        'search-form', 'search-input', 'search-suggestions', 'home-books', 'browse-books', 'book-detail', 'browse-title', 'loader',
+        'search-form', 'search-input', 'home-books', 'browse-books', 'book-detail', 'browse-title', 'loader',
         'login-link', 'user-info', 'user-dropdown', 'register-form-element', 'login-form-element', 'feedback-form',
         'feedback-list', 'book-form', 'clear-form-btn', 'submit-feedback-link', 'inbox-link', 'add-book-link',
         'landing', 'theme-toggle-btn', 'admin-upgrade-btn', 'admin-code-input', 'forgot-password-form', 
-        'change-password-form', 'post-form', 'forum-posts-list', 'post-detail-content'
+        'change-password-form'
     ];
     ids.forEach(id => {
         const camelCaseId = id.replace(/-([a-z])/g, g => g[1].toUpperCase());
@@ -66,7 +65,6 @@ function showPage(pageId) {
         setTimeout(() => newPageElement.classList.remove('hidden'), 10);
         currentPageId = pageId;
 
-        if (pageId === 'forum') displayForumPosts();
         if (pageId === 'feedback-inbox' && window.currentUserRole === 'admin') displayFeedbacks();
         if (pageId === 'settings') displayUserSettings();
     }
@@ -400,10 +398,8 @@ auth.onAuthStateChanged(async user => {
 function updateUIForUser(userData) {
     const aboutLink = document.getElementById('about-link-li');
     const homeLink = document.getElementById('home-link-li');
-    const forumLink = document.getElementById('forum-link-li');
     if (aboutLink) aboutLink.classList.add('truly-hidden');
     if (homeLink) homeLink.classList.remove('truly-hidden');
-    if (forumLink) forumLink.classList.remove('truly-hidden');
 
     if (DOM.searchForm) DOM.searchForm.classList.remove('truly-hidden');
     if (DOM.loginLink) DOM.loginLink.classList.add('truly-hidden');
@@ -426,10 +422,9 @@ function updateUIForUser(userData) {
 function updateUIForGuest() {
     const aboutLink = document.getElementById('about-link-li');
     const homeLink = document.getElementById('home-link-li');
-    const forumLink = document.getElementById('forum-link-li');
     if (aboutLink) aboutLink.classList.remove('truly-hidden');
     if (homeLink) homeLink.classList.add('truly-hidden');
-    if (forumLink) forumLink.classList.add('truly-hidden');
+
 
     if (DOM.searchForm) DOM.searchForm.classList.add('truly-hidden');
     if (DOM.loginLink) DOM.loginLink.classList.remove('truly-hidden');
@@ -438,7 +433,7 @@ function updateUIForGuest() {
     document.querySelectorAll('.admin-only, #inbox-link, #add-book-link').forEach(el => el.classList.add('truly-hidden'));
     if (DOM.submitFeedbackLink) DOM.submitFeedbackLink.classList.add('truly-hidden');
     
-    ['home', 'browse', 'book-detail', 'settings', 'submit-feedback', 'feedback-inbox', 'manage-books', 'forgot-password', 'register', 'landing', 'forum', 'post-detail'].forEach(id => {
+    ['home', 'browse', 'book-detail', 'settings', 'submit-feedback', 'feedback-inbox', 'manage-books', 'forgot-password', 'register', 'landing'].forEach(id => {
         const page = document.getElementById(id);
         if (page) {
             page.classList.add('hidden');
@@ -532,228 +527,15 @@ function applyTheme(theme) {
     localStorage.setItem('bookstore_theme', theme);
 }
 
-// --- SEARCH SUGGESTION FUNCTIONS ---
-function getSearchHistory() {
-    return JSON.parse(localStorage.getItem('bookstore_searchHistory')) || [];
-}
-
-function saveSearchHistory(query) {
-    let history = getSearchHistory();
-    history = history.filter(item => item !== query);
-    history.unshift(query);
-    const limitedHistory = history.slice(0, 5);
-    localStorage.setItem('bookstore_searchHistory', JSON.stringify(limitedHistory));
-}
-
-function displaySuggestions(term = '') {
-    if (!DOM.searchSuggestions) return;
-
-    const history = getSearchHistory();
-    let suggestions = [];
-
-    if (term === '') {
-        suggestions = history;
-    } else {
-        const lowerCaseTerm = term.toLowerCase();
-        const historyMatches = history.filter(item => item.toLowerCase().includes(lowerCaseTerm));
-        const popularMatches = POPULAR_KEYWORDS.filter(item => item.toLowerCase().includes(lowerCaseTerm));
-        suggestions = [...new Set([...historyMatches, ...popularMatches])];
-    }
-
-    if (suggestions.length === 0) {
-        DOM.searchSuggestions.classList.add('truly-hidden');
-        return;
-    }
-
-    DOM.searchSuggestions.innerHTML = suggestions.map(item => `
-        <div class="suggestion-item">
-            <span><i class="fas fa-history history-icon"></i> ${item}</span>
-        </div>
-    `).join('');
-    DOM.searchSuggestions.classList.remove('truly-hidden');
-
-    document.querySelectorAll('.suggestion-item').forEach(el => {
-        el.addEventListener('click', () => {
-            const query = el.textContent.trim();
-            DOM.searchInput.value = query;
-            DOM.searchSuggestions.classList.add('truly-hidden');
-            performSearch(query);
-        });
-    });
-}
-
-async function performSearch(query) {
-    if (query) {
-        saveSearchHistory(query);
-        if (DOM.browseTitle) DOM.browseTitle.innerText = `Kết quả cho "${query}"`;
-        const books = await searchBooksAPI(query);
-        displayBooks(books, DOM.browseBooks);
-        showPage('browse');
-    }
-}
-// END SEARCH SUGGESTION FUNCTIONS
-
-// --- FORUM FUNCTIONS ---
-async function handlePostSubmit(event) {
-    event.preventDefault();
-    if (!auth.currentUser) return showToast('Bạn cần đăng nhập để đăng bài!', 'error');
-
-    const button = event.target.querySelector('button[type="submit"]');
-    setButtonLoading(button, true);
-
-    const title = DOM.postForm.querySelector('#post-title').value;
-    const content = DOM.postForm.querySelector('#post-content').value;
-
-    try {
-        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
-        const username = userDoc.data().username;
-
-        await db.collection('forum_posts').add({
-            title,
-            content,
-            authorId: auth.currentUser.uid,
-            authorUsername: username,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        showToast('Đăng bài thành công!', 'success');
-        DOM.postForm.reset();
-        displayForumPosts();
-    } catch (error) {
-        console.error("Lỗi khi đăng bài:", error);
-        showToast('Đã có lỗi xảy ra.', 'error');
-    } finally {
-        setButtonLoading(button, false);
-    }
-}
-
-async function displayForumPosts() {
-    if (!DOM.forumPostsList) return;
-    DOM.forumPostsList.innerHTML = '';
-    showLoader(true);
-
-    try {
-        const snapshot = await db.collection('forum_posts').orderBy('createdAt', 'desc').get();
-        if (snapshot.empty) {
-            DOM.forumPostsList.innerHTML = '<p class="text-center">Chưa có bài viết nào. Hãy là người đầu tiên!</p>';
-            return;
-        }
-        snapshot.forEach(doc => {
-            const post = doc.data();
-            const postElement = document.createElement('div');
-            postElement.className = 'forum-post-item';
-            postElement.setAttribute('onclick', `showPostDetail('${doc.id}')`);
-            postElement.innerHTML = `
-                <h5>${post.title}</h5>
-                <p class="post-meta">bởi ${post.authorUsername} • ${post.createdAt?.toDate().toLocaleDateString('vi-VN') || 'Vừa xong'}</p>
-            `;
-            DOM.forumPostsList.appendChild(postElement);
-        });
-    } catch (error) {
-        console.error("Lỗi tải bài viết:", error);
-        showToast('Không thể tải danh sách bài viết.', 'error');
-    } finally {
-        showLoader(false);
-    }
-}
-
-async function showPostDetail(postId) {
-    if (!DOM.postDetailContent) return;
-    DOM.postDetailContent.innerHTML = '';
-    showLoader(true);
-
-    try {
-        const postRef = db.collection('forum_posts').doc(postId);
-        const commentsRef = postRef.collection('comments').orderBy('createdAt', 'asc');
-        const [postDoc, commentsSnapshot] = await Promise.all([postRef.get(), commentsRef.get()]);
-
-        if (!postDoc.exists) {
-            showToast('Không tìm thấy bài viết này.', 'error');
-            return showPage('forum');
-        }
-
-        const post = postDoc.data();
-        let html = `
-            <button class="btn btn-sm btn-secondary mb-4" onclick="showPage('forum')">← Quay lại Diễn đàn</button>
-            <h2>${post.title}</h2>
-            <p class="post-meta">bởi ${post.authorUsername} • ${post.createdAt?.toDate().toLocaleDateString('vi-VN')}</p>
-            <div class="post-content">${post.content}</div>
-            <div class="comments-section"><h4>Bình luận</h4>`;
-
-        if (commentsSnapshot.empty) {
-            html += '<p>Chưa có bình luận nào.</p>';
-        } else {
-            commentsSnapshot.forEach(doc => {
-                const comment = doc.data();
-                html += `<div class="comment-item"><p class="comment-author">${comment.authorUsername}</p><p class="comment-text">${comment.text}</p></div>`;
-            });
-        }
-
-        html += `
-            <form id="comment-form" class="mt-4">
-                <div class="mb-3"><textarea class="form-control" id="comment-text" rows="3" placeholder="Viết bình luận của bạn..." required></textarea></div>
-                <button type="submit" class="btn btn-primary">Gửi bình luận</button>
-            </form>
-        </div>`;
-        
-        DOM.postDetailContent.innerHTML = html;
-        document.getElementById('comment-form').addEventListener('submit', (e) => handleCommentSubmit(e, postId));
-        showPage('post-detail');
-    } catch (error) {
-        console.error("Lỗi tải chi tiết bài viết:", error);
-        showToast('Không thể tải bài viết.', 'error');
-    } finally {
-        showLoader(false);
-    }
-}
-
-async function handleCommentSubmit(event, postId) {
-    event.preventDefault();
-    if (!auth.currentUser) return showToast('Bạn cần đăng nhập để bình luận!', 'error');
-
-    const form = event.target;
-    const button = form.querySelector('button[type="submit"]');
-    setButtonLoading(button, true);
-
-    const text = form.querySelector('#comment-text').value;
-
-    try {
-        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
-        const username = userDoc.data().username;
-
-        await db.collection('forum_posts').doc(postId).collection('comments').add({
-            text,
-            authorId: auth.currentUser.uid,
-            authorUsername: username,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        showPostDetail(postId);
-    } catch (error) {
-        console.error("Lỗi gửi bình luận:", error);
-        showToast('Không thể gửi bình luận.', 'error');
-    } finally {
-        setButtonLoading(button, false);
-    }
-}
-// END FORUM FUNCTIONS
-
 function addAllEventListeners() {
-    if (DOM.searchForm) {
-        DOM.searchForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const query = DOM.searchInput.value.trim();
-            performSearch(query);
-            if (DOM.searchSuggestions) DOM.searchSuggestions.classList.add('truly-hidden');
-        });
-    }
-
-    if (DOM.searchInput) {
-        DOM.searchInput.addEventListener('focus', () => displaySuggestions(DOM.searchInput.value));
-        DOM.searchInput.addEventListener('input', () => displaySuggestions(DOM.searchInput.value));
-    }
-
-    document.addEventListener('click', (e) => {
-        if (DOM.searchForm && !DOM.searchForm.contains(e.target)) {
-            if (DOM.searchSuggestions) DOM.searchSuggestions.classList.add('truly-hidden');
+    if (DOM.searchForm) DOM.searchForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const query = DOM.searchInput.value.trim();
+        if (query) {
+            if (DOM.browseTitle) DOM.browseTitle.innerText = `Kết quả cho "${query}"`;
+            const books = await searchBooksAPI(query);
+            displayBooks(books, DOM.browseBooks);
+            showPage('browse');
         }
     });
 
@@ -773,7 +555,6 @@ function addAllEventListeners() {
     if (lightRadio) lightRadio.addEventListener('change', () => applyTheme('light'));
     if (darkRadio) darkRadio.addEventListener('change', () => applyTheme('dark'));
     if (DOM.adminUpgradeBtn) DOM.adminUpgradeBtn.addEventListener('click', handleAdminUpgrade);
-    if (DOM.postForm) DOM.postForm.addEventListener('submit', handlePostSubmit);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

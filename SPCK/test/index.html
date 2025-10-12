@@ -24,17 +24,15 @@
         <a class="navbar-brand" href="#" onclick="showPage('home')"
           >BookStore</a
         >
-        <form class="d-flex mx-auto position-relative" id="search-form">
+        <form class="d-flex mx-auto" id="search-form">
           <input
             class="form-control me-2"
             type="search"
             placeholder="Tìm kiếm sách..."
             id="search-input"
-            autocomplete="off"
             required
           />
           <button class="btn btn-outline-success" type="submit">Tìm</button>
-          <div id="search-suggestions" class="truly-hidden"></div>
         </form>
         <button
           class="navbar-toggler"
@@ -49,11 +47,6 @@
             <li class="nav-item" id="home-link-li">
               <a class="nav-link" href="#" onclick="showPage('home')"
                 >Trang chủ</a
-              >
-            </li>
-            <li class="nav-item" id="forum-link-li">
-              <a class="nav-link" href="#" onclick="showPage('forum')"
-                >Diễn đàn</a
               >
             </li>
             <li class="nav-item" id="about-link-li">
@@ -464,44 +457,6 @@
           </form>
         </div>
       </section>
-
-      <section id="forum" class="page hidden truly-hidden">
-        <h2 class="text-center mb-4">Diễn Đàn Sách</h2>
-
-        <div class="add-post-form mb-5">
-          <h4>Tạo bài viết mới</h4>
-          <form id="post-form">
-            <div class="mb-3">
-              <label for="post-title" class="form-label"
-                >Tiêu đề bài viết</label
-              >
-              <input
-                type="text"
-                id="post-title"
-                class="form-control"
-                required
-              />
-            </div>
-            <div class="mb-3">
-              <label for="post-content" class="form-label">Nội dung</label>
-              <textarea
-                id="post-content"
-                class="form-control"
-                rows="5"
-                required
-              ></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">Đăng bài</button>
-          </form>
-        </div>
-
-        <h3 class="mb-3">Các bài viết gần đây</h3>
-        <div id="forum-posts-list"></div>
-      </section>
-
-      <section id="post-detail" class="page hidden truly-hidden">
-        <div id="post-detail-content"></div>
-      </section>
     </main>
 
     <div id="toast-container"></div>
@@ -510,6 +465,7 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
@@ -530,6 +486,7 @@
       const db = firebase.firestore();
     </script>
     <script src="script.js"></script>
+
     <script>
       (function () {
         if (!window.chatbase || window.chatbase("getState") !== "initialized") {
