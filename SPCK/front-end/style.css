@@ -55,6 +55,8 @@ header {
 
 footer {
     background: var(--secondary-color);
+    color: #fff; /* Ensure footer text is visible in light mode */
+    padding: 1rem 0; /* Add some padding */
 }
 #search-form {
     width: 50%;
@@ -71,6 +73,12 @@ footer {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 0.25rem rgba(154, 140, 152, 0.25); /* Adjusted shadow for both themes */
 }
+/* Style for disabled email input */
+#user-email-input:disabled {
+    background-color: var(--background-color);
+    opacity: 0.7;
+}
+
 
 /* --- Page & Layout with Transitions --- */
 .container {
@@ -130,15 +138,23 @@ footer {
     font-size: 1.1em;
     color: var(--text-color);
     margin: 15px 0 5px 0;
-    height: 48px;
+    height: 48px; /* Limit height to 2 lines approx */
     overflow: hidden;
+    text-overflow: ellipsis; /* Add ellipsis if text overflows */
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Limit to 2 lines */
+    -webkit-box-orient: vertical;
     cursor: pointer;
 }
 .book .author {
     font-size: 0.9em;
     color: #888;
-    height: 36px;
+    height: 36px; /* Limit height */
     overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
 }
 
 /* --- Admin-only UI --- */
@@ -158,9 +174,14 @@ footer {
 .admin-controls .delete-btn { color: #dc3545; }
 
 /* --- Book Detail Page --- */
-#book-detail-content { display: flex; flex-wrap: wrap; gap: 30px; }
-.book-detail-img { flex: 1; min-width: 250px; text-align: center; }
-.book-detail-info { flex: 2; min-width: 300px; }
+#book-detail-content { display: flex; flex-wrap: wrap; gap: 30px; align-items: flex-start; }
+.book-detail-img { flex: 0 0 250px; /* Fixed width */ text-align: center; }
+.book-detail-img img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 6px 12px rgba(0,0,0,0.2); }
+.book-detail-info { flex: 1; min-width: 300px; }
+.book-detail-info h2 { margin-bottom: 0.5rem; }
+.book-detail-info .author { font-style: italic; color: #6c757d; margin-bottom: 1rem; }
+.book-detail-info .meta-info p { margin-bottom: 0.5rem; }
+.book-detail-info h3 { margin-top: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem; }
 .book-detail-info .description { text-align: justify; line-height: 1.6; }
 
 /* --- Auth Forms --- */
@@ -171,7 +192,14 @@ footer {
 #feedback-list .card-header { font-weight: bold; background-color: var(--page-background-color); }
 
 /* --- Manage Books Form --- */
-.add-book-form { max-width: 700px; margin: 20px auto; padding: 20px; background: var(--background-color); border-radius: 8px; }
+.add-book-form { 
+    max-width: 700px; 
+    margin: 20px auto; 
+    padding: 20px; 
+    background: var(--background-color); 
+    border-radius: 8px; 
+    border: 1px solid var(--border-color); /* Added border like other forms */
+}
 
 /* --- Toast Notification Styles --- */
 #toast-container {
@@ -204,14 +232,27 @@ footer {
     border: 1px solid #e0e0e0;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
+[data-theme='dark'] .navbar .dropdown-menu {
+    background-color: var(--page-background-color);
+    border-color: var(--border-color);
+}
 .navbar .dropdown-item {
     color: #212529;
+}
+[data-theme='dark'] .navbar .dropdown-item {
+    color: var(--text-color);
 }
 .navbar .dropdown-item:hover,
 .navbar .dropdown-item:focus {
     color: #16181b;
     background-color: #f8f9fa;
 }
+[data-theme='dark'] .navbar .dropdown-item:hover,
+[data-theme='dark'] .navbar .dropdown-item:focus {
+    color: var(--text-color);
+    background-color: var(--background-color);
+}
+
 
 /* --- About Page Styles --- */
 .team-member { text-align: center; margin-bottom: 20px; }
@@ -279,10 +320,14 @@ footer {
     text-align: justify;
     padding: 20px 0;
     border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px; /* Add margin below content */
 }
 
 .comments-section {
     margin-top: 30px;
+}
+.comments-section h4 {
+    margin-bottom: 1rem; /* Add space below "Bình luận" heading */
 }
 
 .comment-item {
@@ -297,10 +342,12 @@ footer {
     font-weight: bold;
     color: var(--primary-color);
     font-size: 0.9em;
+    margin-bottom: 0.25rem; /* Add space below author */
 }
 
 .comment-text {
     margin-top: 5px;
+    line-height: 1.5; /* Improve readability */
 }
 
 /* --- Search Suggestion Styles --- */
@@ -340,4 +387,31 @@ footer {
 .suggestion-item .history-icon {
     color: #888;
     margin-right: 10px;
+}
+
+/* --- User Management Styles --- */
+.user-management-form {
+    background-color: var(--background-color);
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+#users-list-tbody button,
+#my-books-list-tbody button, 
+#all-user-books-tbody button { 
+    margin-right: 5px;
+}
+
+.table {
+    --bs-table-bg: var(--page-background-color);
+    --bs-table-color: var(--text-color);
+    --bs-table-striped-bg: var(--background-color);
+    --bs-table-hover-bg: var(--shadow-color);
+    border-color: var(--border-color);
+    margin-top: 1.5rem; 
+}
+[data-theme='dark'] .table {
+    --bs-table-striped-color: var(--text-color);
+    --bs-table-hover-color: var(--text-color);
 }

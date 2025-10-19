@@ -11,9 +11,12 @@ function initializeDOMElements() {
     const ids = [
         'search-form', 'search-input', 'search-suggestions', 'home-books', 'browse-books', 'book-detail', 'browse-title', 'loader',
         'login-link', 'user-info', 'user-dropdown', 'register-form-element', 'login-form-element', 'feedback-form',
-        'feedback-list', 'book-form', 'clear-form-btn', 'submit-feedback-link', 'inbox-link', 'add-book-link',
+        'feedback-list', 'submit-feedback-link', 'inbox-link', // 'add-book-link' replaced by 'manage-user-books-link'
         'landing', 'theme-toggle-btn', 'admin-upgrade-btn', 'admin-code-input', 'forgot-password-form', 
-        'change-password-form', 'post-form', 'forum-posts-list', 'post-detail-content'
+        'change-password-form', 'post-form', 'forum-posts-list', 'post-detail-content',
+        'user-form', 'users-list-tbody', 'clear-user-form-btn',
+        'my-books-link-li', 'my-books-list-tbody', 'my-book-form', 'clear-my-book-form-btn', 
+        'manage-user-books-link', 'all-user-books-tbody', 'admin-book-form', 'clear-admin-book-form-btn' 
     ];
     ids.forEach(id => {
         const camelCaseId = id.replace(/-([a-z])/g, g => g[1].toUpperCase());
@@ -43,32 +46,54 @@ function showLoader(show) { if (DOM.loader) DOM.loader.classList.toggle('truly-h
 function showPage(pageId) {
     if (currentPageId === pageId) return;
 
-    const adminPages = ['manage-books', 'feedback-inbox'];
-    if (adminPages.includes(pageId) && (!auth.currentUser || window.currentUserRole !== 'admin')) {
+    const adminPages = ['feedback-inbox', 'manage-users', 'manage-books']; 
+    const userPages = ['my-books', 'forum', 'settings', 'submit-feedback']; 
+
+    // Kiểm tra quyền truy cập trước
+    if ((adminPages.includes(pageId) || userPages.includes(pageId)) && !auth.currentUser) {
+         return showToast('Bạn cần đăng nhập để truy cập trang này.', 'error');
+    }
+    if (adminPages.includes(pageId) && window.currentUserRole !== 'admin') {
         return showToast('Bạn không có quyền truy cập trang này.', 'error');
     }
 
+    // Ẩn trang hiện tại
     if (currentPageId) {
         const currentPageElement = document.getElementById(currentPageId);
         if (currentPageElement) {
             currentPageElement.classList.add('hidden');
             setTimeout(() => {
-                if(currentPageElement.classList.contains('hidden')) {
+                // Check again in case the page changed quickly
+                if(currentPageElement.classList.contains('hidden')) { 
                    currentPageElement.classList.add('truly-hidden');
                 }
-            }, 400);
+            }, 400); // Duration should match CSS transition
         }
     }
 
+    // Hiển thị trang mới
     const newPageElement = document.getElementById(pageId);
     if (newPageElement) {
         newPageElement.classList.remove('truly-hidden');
-        setTimeout(() => newPageElement.classList.remove('hidden'), 10);
+        // Delay removing 'hidden' to allow opacity transition
+        setTimeout(() => newPageElement.classList.remove('hidden'), 10); 
         currentPageId = pageId;
 
+        // Tải dữ liệu cần thiết cho trang mới
+        if (pageId === 'my-books') displayMyBooks();        // Hiển thị sách của user
+        if (pageId === 'manage-books') displayAllUserBooks(); // Hiển thị tất cả sách user (admin)
+        if (pageId === 'manage-users') displayUsers(); 
         if (pageId === 'forum') displayForumPosts();
         if (pageId === 'feedback-inbox' && window.currentUserRole === 'admin') displayFeedbacks();
         if (pageId === 'settings') displayUserSettings();
+    } else {
+        console.error(`Page with ID "${pageId}" not found.`);
+        // Optionally show a default page like 'home' or 'about' for guests
+        if (!auth.currentUser) {
+            showPage('about');
+        } else {
+            showPage('home');
+        }
     }
 }
 
@@ -78,8 +103,9 @@ async function searchBooksAPI(query) {
     showLoader(true);
     try {
         const response = await fetch(`${SEARCH_API_URL}?q=${encodeURIComponent(query)}&limit=50`);
-        if (!response.ok) throw new Error('Network error');
-        return (await response.json()).docs || [];
+        if (!response.ok) throw new Error('Network error during search');
+        const data = await response.json();
+        return data.docs || [];
     } catch (error) {
         console.error("API Search Error:", error);
         showToast('Lỗi khi tìm kiếm sách. Vui lòng thử lại.', 'error');
@@ -93,7 +119,7 @@ async function fetchBookDetailsAPI(bookKey) {
     showLoader(true);
     try {
         const response = await fetch(`${BOOKS_API_URL}${bookKey}.json`);
-        if (!response.ok) throw new Error('Network error');
+        if (!response.ok) throw new Error(`Network error fetching details for ${bookKey}`);
         return await response.json();
     } catch (error) {
         console.error("API Detail Error:", error);
@@ -106,75 +132,118 @@ async function fetchBookDetailsAPI(bookKey) {
 
 // --- DISPLAY FUNCTIONS ---
 function displayBooks(books, container) {
-    if(!container) return;
-    container.innerHTML = '';
+    if (!container) {
+        console.error("Book display container not found");
+        return;
+    }
+    container.innerHTML = ''; // Clear previous results
     const isAdmin = window.currentUserRole === 'admin';
+
+    if (!books || books.length === 0) {
+        container.innerHTML = '<p class="text-center text-muted">Không tìm thấy sách nào.</p>';
+        return;
+    }
     
     books.forEach(book => {
         const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : 'https://via.placeholder.com/240x360.png?text=No+Image';
         const bookElement = document.createElement('div');
         bookElement.className = 'book';
+        // Use book.key for OpenLibrary books
+        const bookIdentifier = book.key ? `'${book.key}'` : (book.id ? `'${book.id}'` : null); 
+        if (!bookIdentifier) return; // Skip if no identifier
+
         bookElement.innerHTML = `
-            ${isAdmin ? `<div class="admin-controls"><button class="edit-btn" onclick="handleEditBook('${book.key}')">✏️</button><button class="delete-btn" onclick="handleDeleteBook('${book.key}')">🗑️</button></div>` : ''}
-            <img src="${coverUrl}" alt="${book.title}" onclick="showBookDetail('${book.key}')">
-            <h3 onclick="showBookDetail('${book.key}')">${book.title}</h3>
-            <p class="author">${book.author_name ? book.author_name.join(', ') : 'Unknown Author'}</p>
+            ${isAdmin ? `<div class="admin-controls"><button class="edit-btn" onclick="handleEditBook(${bookIdentifier})">✏️</button><button class="delete-btn" onclick="handleDeleteBook(${bookIdentifier})">🗑️</button></div>` : ''}
+            <img src="${coverUrl}" alt="${book.title}" onclick="showBookDetail(${bookIdentifier})">
+            <h3 onclick="showBookDetail(${bookIdentifier})">${book.title || 'Không có tiêu đề'}</h3>
+            <p class="author">${book.author_name ? book.author_name.join(', ') : (book.authors || 'Unknown Author')}</p>
         `;
         container.appendChild(bookElement);
     });
 }
 
-async function showBookDetail(bookKey) {
-    const ls = { get: (key, defaultValue = {}) => JSON.parse(localStorage.getItem(key)) || defaultValue };
-    const editedBooks = ls.get('bookstore_editedBooks');
-    const customBooks = ls.get('bookstore_customBooks', []);
-    const customBook = customBooks.find(b => b.key === bookKey);
-    const editedData = editedBooks[bookKey];
 
-    let title, authors, publishYear, description, coverUrl;
+async function showBookDetail(bookOrDocId) {
+    if (!DOM.bookDetail) return; // Check if the detail section exists
 
-    if (customBook) {
-        title = editedData?.title || customBook.title;
-        authors = editedData?.authors || customBook.authors;
-        publishYear = 'N/A';
-        description = editedData?.description || customBook.description || 'Không có mô tả.';
-        coverUrl = editedData?.coverUrl || customBook.coverUrl;
-    } else {
-        const bookDetails = await fetchBookDetailsAPI(bookKey);
-        if (!bookDetails) return;
-        title = editedData?.title || bookDetails.title;
-        authors = editedData?.authors || (bookDetails.authors ? bookDetails.authors.map(a => a.key).join(', ').replace('/authors/', '') : 'N/A');
-        publishYear = bookDetails.first_publish_year || 'N/A';
-        description = editedData?.description || (typeof bookDetails.description === 'string' ? bookDetails.description : (bookDetails.description?.value || 'Không có mô tả.'));
-        coverUrl = editedData?.coverUrl || (bookDetails.covers?.[0] ? `https://covers.openlibrary.org/b/id/${bookDetails.covers[0]}-L.jpg` : 'https://via.placeholder.com/250x380.png?text=No+Image');
+    const isFirestoreId = typeof bookOrDocId === 'string' && bookOrDocId.length === 20 && !bookOrDocId.includes('/'); 
+    let title = 'Không có tiêu đề';
+    let authors = 'N/A';
+    let publishYear = 'N/A';
+    let description = 'Không có mô tả.';
+    let coverUrl = 'https://via.placeholder.com/250x380.png?text=No+Image';
+    
+    showLoader(true);
+
+    try {
+        if (isFirestoreId) { 
+            const bookDoc = await db.collection('user_books').doc(bookOrDocId).get();
+            if (!bookDoc.exists) throw new Error('Book not found in Firestore');
+            const bookData = bookDoc.data();
+            title = bookData.title;
+            authors = bookData.authors || 'N/A';
+            publishYear = bookData.createdAt?.toDate().toLocaleDateString('vi-VN') || 'N/A'; // Use created date
+            description = bookData.description || 'Không có mô tả.';
+            coverUrl = bookData.coverUrl || 'https://via.placeholder.com/250x380.png?text=No+Image';
+        } else { 
+            const bookKey = bookOrDocId; 
+            // Note: Admin edits on OL books are not implemented with Firestore in this version
+            // const ls = { get: (key, defaultValue = {}) => JSON.parse(localStorage.getItem(key)) || defaultValue };
+            // const editedBooks = ls.get('bookstore_editedBooks'); 
+            // const editedData = editedBooks[bookKey];
+
+            const bookDetails = await fetchBookDetailsAPI(bookKey);
+            if (!bookDetails) throw new Error('Book not found in OpenLibrary');
+            
+            title = /*editedData?.title ||*/ bookDetails.title;
+            authors = /*editedData?.authors ||*/ (bookDetails.authors ? bookDetails.authors.map(a => a.key).join(', ').replace('/authors/', '') : 'N/A');
+            publishYear = bookDetails.first_publish_year || 'N/A';
+            description = /*editedData?.description ||*/ (typeof bookDetails.description === 'string' ? bookDetails.description : (bookDetails.description?.value || 'Không có mô tả.'));
+            coverUrl = /*editedData?.coverUrl ||*/ (bookDetails.covers?.[0] ? `https://covers.openlibrary.org/b/id/${bookDetails.covers[0]}-L.jpg` : 'https://via.placeholder.com/250x380.png?text=No+Image');
+        }
+
+        const tikiSearchUrl = `https://tiki.vn/search?q=${encodeURIComponent(title)}`;
+
+        DOM.bookDetail.innerHTML = `
+            <div id="book-detail-content">
+                <div class="book-detail-img">
+                    <img src="${coverUrl}" alt="${title}">
+                </div>
+                <div class="book-detail-info">
+                    <h2>${title}</h2>
+                    <p class="author">bởi ${authors}</p>
+                    <div class="meta-info">
+                        <p><strong>Năm XB / Thêm:</strong> <span>${publishYear}</span></p> 
+                    </div>
+                    <h3>Giới thiệu</h3>
+                    <div class="description">${description.replace(/\n/g, '<br>')}</div>
+                    <div class="mt-4">
+                        <button class="btn btn-secondary" onclick="goBackOrHome()">Quay lại</button> 
+                        <a href="${tikiSearchUrl}" target="_blank" class="btn btn-primary ms-2">
+                            <i class="fas fa-shopping-cart"></i> Mua trên Tiki
+                        </a>
+                    </div>
+                </div>
+            </div>`;
+        
+        showPage('book-detail');
+
+    } catch (error) {
+        console.error("Lỗi khi hiển thị chi tiết sách:", error);
+        showToast('Không thể tải chi tiết sách.', 'error');
+        // If details fail, maybe go back or show home
+        goBackOrHome();
+    } finally {
+        showLoader(false);
     }
-    
-    const tikiSearchUrl = `https://tiki.vn/search?q=${encodeURIComponent(title)}`;
-
-    DOM.bookDetail.innerHTML = `
-        <div id="book-detail-content">
-            <div class="book-detail-img">
-                <img src="${coverUrl}" alt="${title}">
-            </div>
-            <div class="book-detail-info">
-                <h2>${title}</h2>
-                <p class="author">bởi ${authors}</p>
-                <div class="meta-info">
-                    <p><strong>Năm XB đầu tiên:</strong> <span>${publishYear}</span></p>
-                </div>
-                <h3>Giới thiệu</h3>
-                <div class="description">${description.replace(/\n/g, '<br>')}</div>
-                <div class="mt-4">
-                    <button class="btn btn-secondary" onclick="showPage('home')">Quay lại</button>
-                    <a href="${tikiSearchUrl}" target="_blank" class="btn btn-primary ms-2">
-                        <i class="fas fa-shopping-cart"></i> Mua trên Tiki
-                    </a>
-                </div>
-            </div>
-        </div>`;
-    
-    showPage('book-detail');
 }
+
+function goBackOrHome() {
+    // Simple implementation: always go home
+    showPage('home'); 
+    // More complex: could check previous page state if stored
+}
+
 
 // --- FEEDBACK MANAGEMENT with FIREBASE ---
 async function handleFeedbackSubmit(event) {
@@ -194,7 +263,7 @@ async function handleFeedbackSubmit(event) {
         await db.collection("feedbacks").add(feedbackData);
         showToast('Cảm ơn bạn đã gửi phản hồi!', 'success');
         event.target.reset();
-        showPage('home');
+        showPage('home'); // Redirect after feedback
     } catch (error) {
         console.error("Lỗi khi gửi feedback:", error);
         showToast('Đã xảy ra lỗi khi gửi. Vui lòng thử lại.', 'error');
@@ -205,7 +274,7 @@ async function handleFeedbackSubmit(event) {
 
 async function displayFeedbacks() {
     if (!DOM.feedbackList) return;
-    DOM.feedbackList.innerHTML = '';
+    DOM.feedbackList.innerHTML = ''; // Clear previous
     showLoader(true);
     try {
         const snapshot = await db.collection("feedbacks").orderBy("createdAt", "desc").get();
@@ -217,7 +286,7 @@ async function displayFeedbacks() {
             const fb = doc.data();
             const card = document.createElement('div');
             card.className = 'card mb-3';
-            card.innerHTML = `<div class="card-header">${fb.name} - ${fb.email} (${fb.createdAt?.toDate().toLocaleString('vi-VN') || 'N/A'})</div><div class="card-body"><p class="card-text">${fb.message}</p></div>`;
+            card.innerHTML = `<div class="card-header">${fb.name} - ${fb.email} (${fb.createdAt?.toDate().toLocaleString('vi-VN') || 'N/A'})</div><div class="card-body"><p class="card-text">${fb.message.replace(/\n/g, '<br>')}</p></div>`; // Preserve line breaks
             DOM.feedbackList.appendChild(card);
         });
     } catch (error) {
@@ -233,7 +302,7 @@ let currentUserRole = null;
 
 function setButtonLoading(button, isLoading, text = 'Đang xử lý...') {
     if(!button) return;
-    if (!button.dataset.originalText) {
+    if (button.dataset.originalText === undefined) { // Store original only once
         button.dataset.originalText = button.innerHTML;
     }
     button.disabled = isLoading;
@@ -252,16 +321,17 @@ async function handleRegister(event) {
 
     try {
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        // Create user document in Firestore immediately
         await db.collection("users").doc(userCredential.user.uid).set({
             username: username,
             email: email,
-            role: "user"
+            role: "user" // Default role
         });
         showToast('Đăng ký thành công!', 'success');
-        toggleAuth();
+        toggleAuth(); // Switch to login form
     } catch (error) {
         console.error("Lỗi đăng ký:", error);
-        showToast(error.message, 'error');
+        showToast(`Lỗi đăng ký: ${error.message}`, 'error'); // Show Firebase error message
     } finally {
         setButtonLoading(button, false);
     }
@@ -278,9 +348,10 @@ async function handleLogin(event) {
 
     try {
         await auth.signInWithEmailAndPassword(email, password);
+        // onAuthStateChanged will handle UI updates and redirection
     } catch (error) {
         console.error("Lỗi đăng nhập:", error);
-        showToast(error.message, 'error');
+        showToast(`Lỗi đăng nhập: ${error.message}`, 'error');
     } finally {
         setButtonLoading(button, false);
     }
@@ -291,9 +362,10 @@ async function handleGoogleLogin() {
     try {
         await auth.signInWithPopup(provider);
         showToast('Đăng nhập với Google thành công!', 'success');
+        // onAuthStateChanged will handle user creation in Firestore if needed
     } catch (error) {
         console.error("Lỗi đăng nhập Google:", error);
-        showToast(error.message, 'error');
+        showToast(`Lỗi Google: ${error.message}`, 'error');
     }
 }
 
@@ -307,9 +379,9 @@ async function handleForgotPassword(event) {
 
     try {
         await auth.sendPasswordResetEmail(email);
-        showToast('Email hướng dẫn đã được gửi! Vui lòng kiểm tra hòm thư.', 'success');
+        showToast('Email hướng dẫn đã được gửi! Vui lòng kiểm tra hòm thư (kể cả spam).', 'success', 5000); // Longer duration
         form.reset();
-        showPage('register');
+        showPage('register'); // Go back to login
     } catch (error) {
         console.error("Lỗi gửi email reset:", error);
         if (error.code === 'auth/user-not-found') {
@@ -345,7 +417,8 @@ async function handleChangePassword(event) {
         const user = auth.currentUser;
         if (!user) {
             showToast('Không tìm thấy người dùng. Vui lòng đăng nhập lại.', 'error');
-            return;
+            setButtonLoading(button, false); // Stop loading if no user
+            return; 
         }
         await user.updatePassword(newPassword);
         showToast('Đổi mật khẩu thành công!', 'success');
@@ -353,7 +426,7 @@ async function handleChangePassword(event) {
     } catch (error) {
         console.error("Lỗi đổi mật khẩu:", error);
         if (error.code === 'auth/requires-recent-login') {
-            showToast('Để bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi đổi mật khẩu.', 'error');
+            showToast('Để bảo mật, vui lòng đăng xuất và đăng nhập lại trước khi đổi mật khẩu.', 'error', 5000);
         } else {
             showToast('Có lỗi xảy ra, không thể đổi mật khẩu.', 'error');
         }
@@ -365,34 +438,58 @@ async function handleChangePassword(event) {
 function handleLogout() {
     auth.signOut();
     showToast('Bạn đã đăng xuất.', 'info');
+    // onAuthStateChanged will handle UI updates and redirection
 }
 
 auth.onAuthStateChanged(async user => {
     if (user) {
+        // User is signed in.
         const userDocRef = db.collection("users").doc(user.uid);
         let userDoc = await userDocRef.get();
+        let userData;
 
         if (!userDoc.exists) {
+            // If user logged in via Google/other provider for the first time
+            console.log("Creating Firestore user document for new provider login:", user.uid);
             const newUser = {
-                username: user.displayName || user.email.split('@')[0],
+                username: user.displayName || user.email.split('@')[0], // Use display name or part of email
                 email: user.email,
-                role: "user"
+                role: "user" // Default role
             };
-            await userDocRef.set(newUser);
-            userDoc = await userDocRef.get();
+            try {
+                await userDocRef.set(newUser);
+                userData = newUser; // Use the newly created data
+                 window.currentUserRole = userData.role; // Set role immediately
+            } catch (error) {
+                 console.error("Error creating Firestore user doc:", error);
+                 showToast("Lỗi khi tạo dữ liệu người dùng. Vui lòng thử đăng nhập lại.", "error");
+                 handleLogout(); // Log out if Firestore write fails
+                 return;
+            }
+        } else {
+             userData = userDoc.data();
+             // Ensure userData exists before trying to access role
+             if (!userData) {
+                 console.error("User document exists but data is missing for user:", user.uid);
+                 showToast("Lỗi: Không thể tải dữ liệu người dùng. Vui lòng đăng nhập lại.", "error");
+                 handleLogout();
+                 return;
+             }
+             window.currentUserRole = userData.role; // Set role from existing data
         }
 
-        const userData = userDoc.data();
-        window.currentUserRole = userData.role;
         updateUIForUser(userData);
+        // Load initial data and potentially navigate
         initializeApp(true).then(() => {
-            if (!currentPageId || ['landing', 'register', 'about'].includes(currentPageId)) {
+            // Navigate to home only if user was previously logged out or on specific pages
+            if (!currentPageId || ['landing', 'register', 'about', 'forgot-password'].includes(currentPageId)) {
                 showPage('home');
             }
         });
         
     } else {
-        window.currentUserRole = null;
+        // User is signed out.
+        window.currentUserRole = null; // Clear role
         updateUIForGuest();
     }
 });
@@ -401,9 +498,12 @@ function updateUIForUser(userData) {
     const aboutLink = document.getElementById('about-link-li');
     const homeLink = document.getElementById('home-link-li');
     const forumLink = document.getElementById('forum-link-li');
+    const myBooksLink = document.getElementById('my-books-link-li'); 
+
     if (aboutLink) aboutLink.classList.add('truly-hidden');
     if (homeLink) homeLink.classList.remove('truly-hidden');
     if (forumLink) forumLink.classList.remove('truly-hidden');
+    if (myBooksLink) myBooksLink.classList.remove('truly-hidden'); 
 
     if (DOM.searchForm) DOM.searchForm.classList.remove('truly-hidden');
     if (DOM.loginLink) DOM.loginLink.classList.add('truly-hidden');
@@ -411,12 +511,12 @@ function updateUIForUser(userData) {
     
     if (DOM.userDropdown) DOM.userDropdown.innerText = `Chào, ${userData.username}`;
     const isAdmin = userData.role === 'admin';
-    window.currentUserRole = isAdmin ? 'admin' : 'user';
+    window.currentUserRole = isAdmin ? 'admin' : 'user'; // Ensure role is set correctly
     document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('truly-hidden', !isAdmin));
     if (DOM.inboxLink) DOM.inboxLink.classList.toggle('truly-hidden', !isAdmin);
-    if (DOM.submitFeedbackLink) DOM.submitFeedbackLink.classList.toggle('truly-hidden', isAdmin);
-    if (DOM.addBookLink) DOM.addBookLink.classList.toggle('truly-hidden', !isAdmin);
-    
+    if (DOM.submitFeedbackLink) DOM.submitFeedbackLink.classList.remove('truly-hidden'); // Users can always submit feedback
+    if (DOM.manageUserBooksLink) DOM.manageUserBooksLink.classList.toggle('truly-hidden', !isAdmin); 
+
     ['landing', 'register', 'forgot-password', 'about'].forEach(id => {
         const page = document.getElementById(id);
         if (page) page.classList.add('truly-hidden');
@@ -427,18 +527,24 @@ function updateUIForGuest() {
     const aboutLink = document.getElementById('about-link-li');
     const homeLink = document.getElementById('home-link-li');
     const forumLink = document.getElementById('forum-link-li');
+    const myBooksLink = document.getElementById('my-books-link-li'); 
+
     if (aboutLink) aboutLink.classList.remove('truly-hidden');
     if (homeLink) homeLink.classList.add('truly-hidden');
     if (forumLink) forumLink.classList.add('truly-hidden');
+    if (myBooksLink) myBooksLink.classList.add('truly-hidden'); 
 
     if (DOM.searchForm) DOM.searchForm.classList.add('truly-hidden');
     if (DOM.loginLink) DOM.loginLink.classList.remove('truly-hidden');
     if (DOM.userInfo) DOM.userInfo.classList.add('truly-hidden');
     
-    document.querySelectorAll('.admin-only, #inbox-link, #add-book-link').forEach(el => el.classList.add('truly-hidden'));
-    if (DOM.submitFeedbackLink) DOM.submitFeedbackLink.classList.add('truly-hidden');
+    document.querySelectorAll('.admin-only, #inbox-link, #add-book-link, #manage-user-books-link').forEach(el => {
+         if(el) el.classList.add('truly-hidden'); // Add null check
+    }); 
+    if (DOM.submitFeedbackLink) DOM.submitFeedbackLink.classList.add('truly-hidden'); // Hide feedback for guests
     
-    ['home', 'browse', 'book-detail', 'settings', 'submit-feedback', 'feedback-inbox', 'manage-books', 'forgot-password', 'register', 'landing', 'forum', 'post-detail'].forEach(id => {
+    // Hide all main content sections, show 'about'
+    ['home', 'browse', 'book-detail', 'settings', 'submit-feedback', 'feedback-inbox', 'manage-books', 'forgot-password', 'register', 'landing', 'forum', 'post-detail', 'manage-users', 'my-books'].forEach(id => {
         const page = document.getElementById(id);
         if (page) {
             page.classList.add('hidden');
@@ -446,7 +552,8 @@ function updateUIForGuest() {
         }
     });
 
-    showPage('about');
+    showPage('about'); // Show the about page by default for guests
+    currentPageId = 'about'; // Explicitly set current page for guests
 }
 
 function displayUserSettings() {
@@ -462,14 +569,20 @@ function displayUserSettings() {
             if (usernameSpan) usernameSpan.textContent = userData.username;
             if (emailSpan) emailSpan.textContent = userData.email;
             if (adminBlock) adminBlock.classList.toggle('truly-hidden', userData.role === 'admin');
+        } else {
+             console.warn("User settings: Firestore document not found for user", auth.currentUser.uid);
         }
+    }).catch(error => {
+         console.error("Error fetching user settings:", error);
     });
 
     const currentTheme = localStorage.getItem('bookstore_theme') || 'light';
     const darkThemeRadio = document.getElementById('darkThemeRadio');
     const lightThemeRadio = document.getElementById('lightThemeRadio');
     if (darkThemeRadio && lightThemeRadio) {
-        document.getElementById(currentTheme === 'dark' ? 'darkThemeRadio' : 'lightThemeRadio').checked = true;
+        try { // Add try-catch in case elements are missing briefly during page transition
+             document.getElementById(currentTheme === 'dark' ? 'darkThemeRadio' : 'lightThemeRadio').checked = true;
+        } catch(e){}
     }
 }
 
@@ -483,24 +596,28 @@ async function handleAdminUpgrade() {
     try {
         if (code !== '0000') {
             showToast('Mã Admin không chính xác.', 'error');
-            return;
+            setButtonLoading(button, false); // Stop loading on incorrect code
+            return; // Exit early
         }
 
         const userRef = db.collection("users").doc(auth.currentUser.uid);
         await userRef.update({ role: "admin" });
 
-        window.currentUserRole = 'admin'; 
+        window.currentUserRole = 'admin'; // Update role immediately
         showToast('Nâng cấp tài khoản thành Admin thành công!', 'success');
 
         const updatedUserData = (await userRef.get()).data();
-        updateUIForUser(updatedUserData);
-        displayUserSettings();
+        updateUIForUser(updatedUserData); // Refresh UI elements based on new role
+        displayUserSettings(); // Refresh settings page display
         
     } catch (error) {
         showToast('Đã xảy ra lỗi khi nâng cấp.', 'error');
         console.error("Lỗi nâng cấp admin:", error);
     } finally {
-        setButtonLoading(button, false);
+        // Ensure loading always stops, even if validation fails early
+        if (button.disabled) { 
+            setButtonLoading(button, false);
+        }
     }
 }
 
@@ -515,14 +632,19 @@ function toggleAuth() {
 }
 
 async function initializeApp(fetchNew = true) {
-    if (!DOM.homeBooks) return;
+    if (!DOM.homeBooks) return; // Don't run if home isn't ready
     const cachedBooks = JSON.parse(localStorage.getItem('api_cache') || '[]');
-    if (fetchNew || cachedBooks.length === 0) {
-        const featuredBooks = await searchBooksAPI('vietnamese literature');
-        localStorage.setItem('api_cache', JSON.stringify(featuredBooks));
-        displayBooks(featuredBooks, DOM.homeBooks);
-    } else {
-        displayBooks(cachedBooks, DOM.homeBooks);
+    try {
+        if (fetchNew || cachedBooks.length === 0) {
+            const featuredBooks = await searchBooksAPI('vietnamese literature'); // Or another default search
+            localStorage.setItem('api_cache', JSON.stringify(featuredBooks));
+            displayBooks(featuredBooks, DOM.homeBooks);
+        } else {
+            displayBooks(cachedBooks, DOM.homeBooks);
+        }
+    } catch (error) {
+        console.error("Error initializing app books:", error);
+        // Maybe display a fallback message
     }
 }
 
@@ -534,15 +656,25 @@ function applyTheme(theme) {
 
 // --- SEARCH SUGGESTION FUNCTIONS ---
 function getSearchHistory() {
-    return JSON.parse(localStorage.getItem('bookstore_searchHistory')) || [];
+    try {
+        return JSON.parse(localStorage.getItem('bookstore_searchHistory')) || [];
+    } catch (e) {
+        console.error("Error reading search history:", e);
+        return [];
+    }
 }
 
 function saveSearchHistory(query) {
-    let history = getSearchHistory();
-    history = history.filter(item => item !== query);
-    history.unshift(query);
-    const limitedHistory = history.slice(0, 5);
-    localStorage.setItem('bookstore_searchHistory', JSON.stringify(limitedHistory));
+    if (!query) return; // Don't save empty queries
+    try {
+        let history = getSearchHistory();
+        history = history.filter(item => item !== query); // Remove duplicates
+        history.unshift(query); // Add to the beginning
+        const limitedHistory = history.slice(0, 5); // Keep only the last 5
+        localStorage.setItem('bookstore_searchHistory', JSON.stringify(limitedHistory));
+    } catch (e) {
+        console.error("Error saving search history:", e);
+    }
 }
 
 function displaySuggestions(term = '') {
@@ -551,13 +683,13 @@ function displaySuggestions(term = '') {
     const history = getSearchHistory();
     let suggestions = [];
 
-    if (term === '') {
+    if (term === '') { // Show only history if input is empty
         suggestions = history;
-    } else {
+    } else { // Filter history and popular keywords
         const lowerCaseTerm = term.toLowerCase();
         const historyMatches = history.filter(item => item.toLowerCase().includes(lowerCaseTerm));
-        const popularMatches = POPULAR_KEYWORDS.filter(item => item.toLowerCase().includes(lowerCaseTerm));
-        suggestions = [...new Set([...historyMatches, ...popularMatches])];
+        const popularMatches = POPULAR_KEYWORDS.filter(item => item.toLowerCase().includes(lowerCaseTerm) && !historyMatches.includes(item)); // Avoid duplicates from history
+        suggestions = [...historyMatches, ...popularMatches];
     }
 
     if (suggestions.length === 0) {
@@ -567,28 +699,30 @@ function displaySuggestions(term = '') {
 
     DOM.searchSuggestions.innerHTML = suggestions.map(item => `
         <div class="suggestion-item">
-            <span><i class="fas fa-history history-icon"></i> ${item}</span>
+            <span><i class="fas ${history.includes(item) ? 'fa-history' : 'fa-search'} history-icon"></i> ${item}</span>
         </div>
-    `).join('');
+    `).join(''); // Use history or search icon
     DOM.searchSuggestions.classList.remove('truly-hidden');
 
-    document.querySelectorAll('.suggestion-item').forEach(el => {
+    // Add click listeners to suggestions
+    document.querySelectorAll('#search-suggestions .suggestion-item').forEach(el => {
         el.addEventListener('click', () => {
-            const query = el.textContent.trim();
-            DOM.searchInput.value = query;
-            DOM.searchSuggestions.classList.add('truly-hidden');
-            performSearch(query);
+             // Extract text correctly, removing the icon part if needed
+            const query = el.querySelector('span').textContent.trim(); 
+            if (DOM.searchInput) DOM.searchInput.value = query;
+            if (DOM.searchSuggestions) DOM.searchSuggestions.classList.add('truly-hidden');
+            performSearch(query); // Trigger search immediately
         });
     });
 }
 
 async function performSearch(query) {
     if (query) {
-        saveSearchHistory(query);
+        saveSearchHistory(query); // Save the search term
         if (DOM.browseTitle) DOM.browseTitle.innerText = `Kết quả cho "${query}"`;
         const books = await searchBooksAPI(query);
         displayBooks(books, DOM.browseBooks);
-        showPage('browse');
+        showPage('browse'); // Navigate to results page
     }
 }
 // END SEARCH SUGGESTION FUNCTIONS
@@ -606,6 +740,7 @@ async function handlePostSubmit(event) {
 
     try {
         const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+        if (!userDoc.exists) throw new Error("User document not found");
         const username = userDoc.data().username;
 
         await db.collection('forum_posts').add({
@@ -617,10 +752,10 @@ async function handlePostSubmit(event) {
         });
         showToast('Đăng bài thành công!', 'success');
         DOM.postForm.reset();
-        displayForumPosts();
+        displayForumPosts(); // Refresh the list
     } catch (error) {
         console.error("Lỗi khi đăng bài:", error);
-        showToast('Đã có lỗi xảy ra.', 'error');
+        showToast('Đã có lỗi xảy ra khi đăng bài.', 'error');
     } finally {
         setButtonLoading(button, false);
     }
@@ -628,11 +763,11 @@ async function handlePostSubmit(event) {
 
 async function displayForumPosts() {
     if (!DOM.forumPostsList) return;
-    DOM.forumPostsList.innerHTML = '';
+    DOM.forumPostsList.innerHTML = ''; // Clear previous
     showLoader(true);
 
     try {
-        const snapshot = await db.collection('forum_posts').orderBy('createdAt', 'desc').get();
+        const snapshot = await db.collection('forum_posts').orderBy('createdAt', 'desc').limit(20).get(); // Limit results for performance
         if (snapshot.empty) {
             DOM.forumPostsList.innerHTML = '<p class="text-center">Chưa có bài viết nào. Hãy là người đầu tiên!</p>';
             return;
@@ -649,7 +784,7 @@ async function displayForumPosts() {
             DOM.forumPostsList.appendChild(postElement);
         });
     } catch (error) {
-        console.error("Lỗi tải bài viết:", error);
+        console.error("Lỗi tải bài viết diễn đàn:", error);
         showToast('Không thể tải danh sách bài viết.', 'error');
     } finally {
         showLoader(false);
@@ -658,25 +793,30 @@ async function displayForumPosts() {
 
 async function showPostDetail(postId) {
     if (!DOM.postDetailContent) return;
-    DOM.postDetailContent.innerHTML = '';
+    DOM.postDetailContent.innerHTML = ''; // Clear previous
     showLoader(true);
 
     try {
         const postRef = db.collection('forum_posts').doc(postId);
         const commentsRef = postRef.collection('comments').orderBy('createdAt', 'asc');
-        const [postDoc, commentsSnapshot] = await Promise.all([postRef.get(), commentsRef.get()]);
+        
+        // Fetch post and comments concurrently
+        const [postDoc, commentsSnapshot] = await Promise.all([
+            postRef.get(), 
+            commentsRef.get()
+        ]);
 
         if (!postDoc.exists) {
             showToast('Không tìm thấy bài viết này.', 'error');
-            return showPage('forum');
+            return showPage('forum'); // Go back to forum list
         }
 
         const post = postDoc.data();
         let html = `
             <button class="btn btn-sm btn-secondary mb-4" onclick="showPage('forum')">← Quay lại Diễn đàn</button>
             <h2>${post.title}</h2>
-            <p class="post-meta">bởi ${post.authorUsername} • ${post.createdAt?.toDate().toLocaleDateString('vi-VN')}</p>
-            <div class="post-content">${post.content}</div>
+            <p class="post-meta">bởi ${post.authorUsername} • ${post.createdAt?.toDate().toLocaleString('vi-VN') || 'N/A'}</p>
+            <div class="post-content">${post.content.replace(/\n/g, '<br>')}</div>
             <div class="comments-section"><h4>Bình luận</h4>`;
 
         if (commentsSnapshot.empty) {
@@ -684,20 +824,32 @@ async function showPostDetail(postId) {
         } else {
             commentsSnapshot.forEach(doc => {
                 const comment = doc.data();
-                html += `<div class="comment-item"><p class="comment-author">${comment.authorUsername}</p><p class="comment-text">${comment.text}</p></div>`;
+                html += `<div class="comment-item"><p class="comment-author">${comment.authorUsername}</p><p class="comment-text">${comment.text.replace(/\n/g, '<br>')}</p></div>`;
             });
         }
 
-        html += `
-            <form id="comment-form" class="mt-4">
-                <div class="mb-3"><textarea class="form-control" id="comment-text" rows="3" placeholder="Viết bình luận của bạn..." required></textarea></div>
-                <button type="submit" class="btn btn-primary">Gửi bình luận</button>
-            </form>
-        </div>`;
+        // Add comment form only if user is logged in
+        if(auth.currentUser){
+            html += `
+                <form id="comment-form" class="mt-4">
+                    <div class="mb-3"><textarea class="form-control" id="comment-text" rows="3" placeholder="Viết bình luận của bạn..." required></textarea></div>
+                    <button type="submit" class="btn btn-primary">Gửi bình luận</button>
+                </form>
+            </div>`; // Close comments-section div
+        } else {
+             html += `<p class="mt-3 text-muted">Vui lòng <a href="#" onclick="showPage('register')">đăng nhập</a> để bình luận.</p></div>`; // Close comments-section div
+        }
         
         DOM.postDetailContent.innerHTML = html;
-        document.getElementById('comment-form').addEventListener('submit', (e) => handleCommentSubmit(e, postId));
-        showPage('post-detail');
+        
+        // Add event listener only if the form exists
+        const commentForm = document.getElementById('comment-form');
+        if (commentForm) { 
+             commentForm.addEventListener('submit', (e) => handleCommentSubmit(e, postId));
+        }
+        
+        showPage('post-detail'); // Show the page after content is ready
+
     } catch (error) {
         console.error("Lỗi tải chi tiết bài viết:", error);
         showToast('Không thể tải bài viết.', 'error');
@@ -715,9 +867,15 @@ async function handleCommentSubmit(event, postId) {
     setButtonLoading(button, true);
 
     const text = form.querySelector('#comment-text').value;
+    if (!text.trim()) { // Basic validation
+         showToast('Vui lòng nhập nội dung bình luận.', 'error');
+         setButtonLoading(button, false);
+         return;
+    }
 
     try {
         const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+        if (!userDoc.exists) throw new Error("User document not found");
         const username = userDoc.data().username;
 
         await db.collection('forum_posts').doc(postId).collection('comments').add({
@@ -726,44 +884,465 @@ async function handleCommentSubmit(event, postId) {
             authorUsername: username,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        showPostDetail(postId);
+        // Refresh the post detail view to show the new comment
+        showPostDetail(postId); 
     } catch (error) {
         console.error("Lỗi gửi bình luận:", error);
         showToast('Không thể gửi bình luận.', 'error');
+        setButtonLoading(button, false); // Ensure loading stops on error
+    } 
+    // No finally needed here as showPostDetail has its own loading management
+}
+// END FORUM FUNCTIONS
+
+// --- USER MANAGEMENT FUNCTIONS ---
+async function displayUsers() {
+    if (!DOM.usersListTbody) return;
+    DOM.usersListTbody.innerHTML = ''; // Clear previous
+    showLoader(true);
+
+    try {
+        const snapshot = await db.collection('users').get();
+        snapshot.forEach(doc => {
+            const user = doc.data();
+            const isCurrentUser = auth.currentUser && auth.currentUser.uid === doc.id;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${user.username}</td>
+                <td>${user.email}</td>
+                <td><span class="badge bg-${user.role === 'admin' ? 'success' : 'secondary'}">${user.role}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="editUser('${doc.id}', '${user.username}', '${user.email}', '${user.role}')">Sửa</button>
+                    <button class="btn btn-sm btn-danger" ${isCurrentUser ? 'disabled title="Không thể xóa chính mình"' : ''} onclick="deleteUser('${doc.id}', '${user.username}')">Xóa</button>
+                </td>
+            `;
+            DOM.usersListTbody.appendChild(tr);
+        });
+    } catch (error) {
+        console.error("Lỗi khi tải danh sách người dùng:", error);
+        showToast('Không thể tải danh sách người dùng.', 'error');
+    } finally {
+        showLoader(false);
+    }
+}
+
+function editUser(id, username, email, role) {
+    if (!DOM.userForm) return;
+    DOM.userForm.querySelector('#user-id-input').value = id;
+    DOM.userForm.querySelector('#user-username-input').value = username;
+    DOM.userForm.querySelector('#user-email-input').value = email;
+    DOM.userForm.querySelector('#user-email-input').disabled = true; // Cannot change email via this form
+    DOM.userForm.querySelector('#user-password-input').value = ''; // Clear password field for editing
+    DOM.userForm.querySelector('#user-password-input').placeholder = 'Để trống nếu không đổi';
+    DOM.userForm.querySelector('#user-role-select').value = role;
+    window.scrollTo(0, 0); // Scroll to top
+}
+
+async function deleteUser(id, username) {
+     if (!confirm(`Bạn có chắc chắn muốn xóa người dùng "${username}" không?\n\nLƯU Ý: Hành động này chỉ xóa dữ liệu trong Firestore. Tài khoản đăng nhập (Authentication) cần được xóa riêng (thường yêu cầu Admin SDK).`)) {
+        return;
+    }
+
+    try {
+        await db.collection('users').doc(id).delete();
+        showToast('Xóa dữ liệu người dùng Firestore thành công!', 'success');
+        displayUsers(); // Refresh the list
+    } catch (error) {
+        console.error("Lỗi khi xóa người dùng:", error);
+        showToast('Không thể xóa dữ liệu người dùng. Vui lòng thử lại.', 'error');
+    }
+}
+
+function clearUserForm() {
+    if (!DOM.userForm) return;
+    DOM.userForm.reset();
+    DOM.userForm.querySelector('#user-id-input').value = '';
+    DOM.userForm.querySelector('#user-email-input').disabled = false;
+    DOM.userForm.querySelector('#user-password-input').placeholder = 'Ít nhất 6 ký tự';
+}
+
+async function handleUserFormSubmit(event) {
+    event.preventDefault();
+    if (!DOM.userForm) return;
+    const button = event.target.querySelector('button[type="submit"]');
+    setButtonLoading(button, true);
+
+    const userId = DOM.userForm.querySelector('#user-id-input').value;
+    const username = DOM.userForm.querySelector('#user-username-input').value;
+    const email = DOM.userForm.querySelector('#user-email-input').value;
+    const role = DOM.userForm.querySelector('#user-role-select').value;
+    // Password should not be handled here for adding/editing users as admin from client-side
+
+    try {
+        if (userId) { // --- UPDATE EXISTING USER (Role and Username only) ---
+            const userRef = db.collection('users').doc(userId);
+            await userRef.update({ username, role });
+            showToast('Cập nhật thông tin người dùng thành công!', 'success');
+        } else { // --- CREATE NEW USER (Firestore data only) ---
+             if (!username || !email ) {
+                 showToast('Vui lòng nhập tên người dùng và email.', 'error');
+                 setButtonLoading(button, false); // Stop loading on validation error
+                 return;
+             }
+             // Check if email already exists in Firestore (basic check)
+             const existingUser = await db.collection('users').where('email', '==', email).limit(1).get();
+             if (!existingUser.empty) {
+                 showToast('Email này đã tồn tại trong Firestore.', 'error');
+                 setButtonLoading(button, false);
+                 return;
+             }
+             
+             // Add user data to Firestore. Auth account creation requires Admin SDK.
+             const newUserRef = await db.collection('users').add({ username, email, role }); 
+             showToast(`Tạo bản ghi người dùng mới ${username} thành công! Lưu ý: Chưa tạo tài khoản đăng nhập.`, 'success', 5000);
+        }
+        clearUserForm();
+        displayUsers(); // Refresh the user list
+    } catch (error) {
+        console.error("Lỗi khi lưu người dùng:", error);
+        showToast('Đã có lỗi xảy ra khi lưu người dùng.', 'error');
+    } finally {
+        // Ensure loading always stops, even if validation fails early
+        if (button.disabled) { 
+            setButtonLoading(button, false);
+        }
+    }
+}
+// END USER MANAGEMENT FUNCTIONS
+
+
+// --- USER BOOK MANAGEMENT FUNCTIONS (Firestore) ---
+async function displayMyBooks() {
+    if (!DOM.myBooksListTbody || !auth.currentUser) return;
+    DOM.myBooksListTbody.innerHTML = ''; // Clear previous
+    showLoader(true);
+
+    try {
+        // Query user's books, order locally if needed after fetch
+        const snapshot = await db.collection('user_books')
+                                .where('addedByUserId', '==', auth.currentUser.uid)
+                                // .orderBy('createdAt', 'desc') // Removed due to potential index/permission issues
+                                .get();
+        if (snapshot.empty) {
+            DOM.myBooksListTbody.innerHTML = '<tr><td colspan="4" class="text-center">Bạn chưa thêm sách nào.</td></tr>';
+            return;
+        }
+
+        // Process and sort data client-side if orderBy was removed
+        let booksData = [];
+        snapshot.forEach(doc => {
+            booksData.push({ id: doc.id, ...doc.data() });
+        });
+        // Sort manually by creation date (descending)
+        booksData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); 
+
+        booksData.forEach(book => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${book.title}</td>
+                <td>${book.authors || 'N/A'}</td>
+                <td>${book.createdAt?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="editMyBook('${book.id}')">Sửa</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteMyBook('${book.id}', '${book.title}')">Xóa</button>
+                </td>
+            `;
+            DOM.myBooksListTbody.appendChild(tr);
+        });
+    } catch (error) {
+        console.error("Lỗi khi tải sách của tôi:", error);
+        // Provide more specific error if permission denied
+        if (error.code === 'permission-denied' || error.message.includes('permission')) {
+             showToast('Lỗi quyền truy cập khi tải sách. Vui lòng kiểm tra Quy tắc Bảo mật Firestore.', 'error', 5000);
+        } else {
+             showToast('Không thể tải danh sách sách của bạn.', 'error');
+        }
+    } finally {
+        showLoader(false);
+    }
+}
+
+
+async function editMyBook(bookId) {
+    if (!DOM.myBookForm || !auth.currentUser) return;
+    showLoader(true);
+    try {
+        const bookDoc = await db.collection('user_books').doc(bookId).get();
+        if (bookDoc.exists) {
+            const bookData = bookDoc.data();
+            // Double-check ownership on client-side (although rules enforce it)
+            if (bookData.addedByUserId !== auth.currentUser.uid) {
+                 showToast('Bạn không có quyền sửa sách này.', 'error');
+                 return;
+            }
+            DOM.myBookForm.querySelector('#my-book-id-input').value = bookId;
+            DOM.myBookForm.querySelector('#my-book-title-input').value = bookData.title;
+            DOM.myBookForm.querySelector('#my-book-author-input').value = bookData.authors || '';
+            DOM.myBookForm.querySelector('#my-book-cover-input').value = bookData.coverUrl || '';
+            DOM.myBookForm.querySelector('#my-book-desc-input').value = bookData.description || '';
+            window.scrollTo(0, 0); // Scroll to top of page
+        } else {
+            showToast('Không tìm thấy sách để sửa.', 'error');
+        }
+    } catch(error) {
+        console.error("Lỗi khi tải sách để sửa:", error);
+        showToast('Có lỗi xảy ra khi tải sách.', 'error');
+    } finally {
+        showLoader(false);
+    }
+}
+
+async function deleteMyBook(bookId, title) {
+     if (!confirm(`Bạn có chắc chắn muốn xóa sách "${title}" không?`)) {
+        return;
+    }
+    if (!auth.currentUser) return; // Should not happen if button is visible, but safety check
+    
+    showLoader(true);
+    try {
+         const bookRef = db.collection('user_books').doc(bookId);
+         const bookDoc = await bookRef.get();
+         // Verify ownership before deleting
+         if (bookDoc.exists && bookDoc.data().addedByUserId === auth.currentUser.uid) {
+            await bookRef.delete();
+            showToast('Xóa sách thành công!', 'success');
+            displayMyBooks(); // Refresh the list
+            clearMyBookForm(); // Clear the form in case it held the deleted book's data
+         } else {
+             showToast('Bạn không có quyền xóa sách này hoặc sách không tồn tại.', 'error');
+         }
+    } catch (error) {
+        console.error("Lỗi khi xóa sách:", error);
+        showToast('Không thể xóa sách.', 'error');
+    } finally {
+        showLoader(false);
+    }
+}
+
+function clearMyBookForm() {
+    if (!DOM.myBookForm) return;
+    DOM.myBookForm.reset();
+    DOM.myBookForm.querySelector('#my-book-id-input').value = ''; 
+}
+
+async function handleMyBookFormSubmit(event) {
+    event.preventDefault();
+    if (!DOM.myBookForm || !auth.currentUser) return;
+    const button = event.target.querySelector('button[type="submit"]');
+    setButtonLoading(button, true);
+
+    const bookId = DOM.myBookForm.querySelector('#my-book-id-input').value;
+    const title = DOM.myBookForm.querySelector('#my-book-title-input').value;
+    const authors = DOM.myBookForm.querySelector('#my-book-author-input').value;
+    const coverUrl = DOM.myBookForm.querySelector('#my-book-cover-input').value;
+    const description = DOM.myBookForm.querySelector('#my-book-desc-input').value;
+
+    try {
+        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+        if (!userDoc.exists) throw new Error("User document not found");
+        const username = userDoc.data().username;
+
+        const bookData = {
+            title,
+            authors,
+            coverUrl,
+            description,
+            addedByUserId: auth.currentUser.uid, // Always set/update owner ID
+            addedByUsername: username // Always set/update owner username
+            // createdAt is only set on creation
+            // lastUpdatedAt could be added here: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (bookId) { // --- CẬP NHẬT SÁCH ---
+            const bookRef = db.collection('user_books').doc(bookId);
+            const currentBookDoc = await bookRef.get();
+            // Verify ownership again before update
+            if(currentBookDoc.exists && currentBookDoc.data().addedByUserId === auth.currentUser.uid) {
+                 bookData.lastUpdatedAt = firebase.firestore.FieldValue.serverTimestamp(); // Add update timestamp
+                await bookRef.update(bookData); // Update fields
+                showToast('Cập nhật sách thành công!', 'success');
+            } else {
+                showToast('Bạn không có quyền sửa sách này hoặc sách không tồn tại.', 'error');
+            }
+        } else { // --- THÊM SÁCH MỚI ---
+             bookData.createdAt = firebase.firestore.FieldValue.serverTimestamp(); // Add timestamp for new books
+            await db.collection('user_books').add(bookData); // Use add() for auto-generated ID
+            showToast('Thêm sách mới thành công!', 'success');
+        }
+        clearMyBookForm(); // Clear form on success
+        displayMyBooks(); // Refresh the list
+    } catch (error) {
+        console.error("Lỗi khi lưu sách của tôi:", error);
+        showToast('Đã có lỗi xảy ra khi lưu sách.', 'error');
     } finally {
         setButtonLoading(button, false);
     }
 }
-// END FORUM FUNCTIONS
+
+// --- ADMIN BOOK MANAGEMENT FUNCTIONS ---
+async function displayAllUserBooks() {
+    if (!DOM.allUserBooksTbody) return;
+    DOM.allUserBooksTbody.innerHTML = ''; // Clear previous
+    showLoader(true);
+
+    try {
+        const snapshot = await db.collection('user_books').orderBy('createdAt', 'desc').get(); // Admin can orderBy
+        if (snapshot.empty) {
+            DOM.allUserBooksTbody.innerHTML = '<tr><td colspan="5" class="text-center">Chưa có người dùng nào thêm sách.</td></tr>';
+            return;
+        }
+
+        snapshot.forEach(doc => {
+            const book = doc.data();
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${book.title}</td>
+                <td>${book.authors || 'N/A'}</td>
+                <td>${book.addedByUsername || 'Không rõ'} (${book.addedByUserId ? book.addedByUserId.substring(0,5) : 'N/A'}...)</td> 
+                <td>${book.createdAt?.toDate().toLocaleDateString('vi-VN') || 'N/A'}</td>
+                <td>
+                    <button class="btn btn-sm btn-warning" onclick="editAnyUserBook('${doc.id}')">Sửa</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteAnyUserBook('${doc.id}', '${book.title}')">Xóa</button>
+                </td>
+            `;
+            DOM.allUserBooksTbody.appendChild(tr);
+        });
+    } catch (error) {
+        console.error("Lỗi khi tải tất cả sách user:", error);
+         if (error.code === 'permission-denied' || error.message.includes('permission')) {
+             showToast('Lỗi quyền truy cập khi tải sách. Vui lòng kiểm tra Quy tắc Bảo mật Firestore.', 'error', 5000);
+         } else {
+            showToast('Không thể tải danh sách sách.', 'error');
+         }
+    } finally {
+        showLoader(false);
+    }
+}
+
+async function editAnyUserBook(bookId) {
+    if (!DOM.adminBookForm) return;
+    showLoader(true);
+    try {
+        const bookDoc = await db.collection('user_books').doc(bookId).get();
+        if (bookDoc.exists) {
+            const bookData = bookDoc.data();
+            DOM.adminBookForm.querySelector('#admin-book-id-input').value = bookId;
+            DOM.adminBookForm.querySelector('#admin-book-title-input').value = bookData.title;
+            DOM.adminBookForm.querySelector('#admin-book-author-input').value = bookData.authors || '';
+            DOM.adminBookForm.querySelector('#admin-book-cover-input').value = bookData.coverUrl || '';
+            DOM.adminBookForm.querySelector('#admin-book-desc-input').value = bookData.description || '';
+            window.scrollTo(0, 0); // Scroll to top
+        } else {
+            showToast('Không tìm thấy sách để sửa.', 'error');
+        }
+    } catch(error) {
+        console.error("Lỗi khi tải sách để admin sửa:", error);
+        showToast('Có lỗi xảy ra khi tải sách.', 'error');
+    } finally {
+        showLoader(false);
+    }
+}
+
+async function deleteAnyUserBook(bookId, title) {
+     if (!confirm(`Bạn (Admin) có chắc chắn muốn xóa sách "${title}" không?`)) {
+        return;
+    }
+    showLoader(true);
+    try {
+        // Admin can delete directly based on security rules
+        await db.collection('user_books').doc(bookId).delete();
+        showToast('Xóa sách thành công!', 'success');
+        displayAllUserBooks(); // Refresh the admin list
+        clearAdminBookForm(); // Clear form if it held data for the deleted book
+    } catch (error) {
+        console.error("Lỗi khi admin xóa sách:", error);
+        showToast('Không thể xóa sách.', 'error');
+    } finally {
+        showLoader(false);
+    }
+}
+
+function clearAdminBookForm() {
+    if (!DOM.adminBookForm) return;
+    DOM.adminBookForm.reset();
+    DOM.adminBookForm.querySelector('#admin-book-id-input').value = ''; 
+}
+
+async function handleAdminBookFormSubmit(event) {
+    event.preventDefault();
+    if (!DOM.adminBookForm) return;
+    const button = event.target.querySelector('button[type="submit"]');
+    setButtonLoading(button, true);
+
+    const bookId = DOM.adminBookForm.querySelector('#admin-book-id-input').value;
+    const title = DOM.adminBookForm.querySelector('#admin-book-title-input').value;
+    const authors = DOM.adminBookForm.querySelector('#admin-book-author-input').value;
+    const coverUrl = DOM.adminBookForm.querySelector('#admin-book-cover-input').value;
+    const description = DOM.adminBookForm.querySelector('#admin-book-desc-input').value;
+
+    if (!bookId) {
+        showToast('Vui lòng chọn sách từ bảng bên dưới để sửa.', 'error');
+        setButtonLoading(button, false);
+        return;
+    }
+
+    try {
+        const bookRef = db.collection('user_books').doc(bookId);
+        // Admin can update these fields based on security rules
+        await bookRef.update({ 
+             title, 
+             authors, 
+             coverUrl, 
+             description,
+             lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp() // Add update timestamp
+        }); 
+        showToast('Admin cập nhật sách thành công!', 'success');
+        clearAdminBookForm(); // Clear the form
+        displayAllUserBooks(); // Refresh the list
+    } catch (error) {
+        console.error("Lỗi khi admin cập nhật sách:", error);
+        showToast('Đã có lỗi xảy ra khi cập nhật sách.', 'error');
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+// END BOOK MANAGEMENT FUNCTIONS
+
 
 function addAllEventListeners() {
+    // Search form and input listeners
     if (DOM.searchForm) {
         DOM.searchForm.addEventListener('submit', (e) => {
             e.preventDefault();
+            if(!DOM.searchInput) return;
             const query = DOM.searchInput.value.trim();
             performSearch(query);
             if (DOM.searchSuggestions) DOM.searchSuggestions.classList.add('truly-hidden');
         });
     }
-
     if (DOM.searchInput) {
         DOM.searchInput.addEventListener('focus', () => displaySuggestions(DOM.searchInput.value));
         DOM.searchInput.addEventListener('input', () => displaySuggestions(DOM.searchInput.value));
     }
-
     document.addEventListener('click', (e) => {
+        // Close suggestions if clicking outside the search form
         if (DOM.searchForm && !DOM.searchForm.contains(e.target)) {
             if (DOM.searchSuggestions) DOM.searchSuggestions.classList.add('truly-hidden');
         }
     });
 
+    // Auth listeners
     if (DOM.registerFormElement) DOM.registerFormElement.addEventListener('submit', handleRegister);
     if (DOM.loginFormElement) DOM.loginFormElement.addEventListener('submit', handleLogin);
     const googleBtn = document.getElementById('google-login-btn');
     if (googleBtn) googleBtn.addEventListener('click', handleGoogleLogin);
     if (DOM.forgotPasswordForm) DOM.forgotPasswordForm.addEventListener('submit', handleForgotPassword);
     if (DOM.changePasswordForm) DOM.changePasswordForm.addEventListener('submit', handleChangePassword);
+    
+    // Feedback listener
     if (DOM.feedbackForm) DOM.feedbackForm.addEventListener('submit', handleFeedbackSubmit);
+    
+    // Theme listeners
     if (DOM.themeToggleButton) DOM.themeToggleButton.addEventListener('click', () => {
         const newTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
         applyTheme(newTheme);
@@ -772,8 +1351,24 @@ function addAllEventListeners() {
     const darkRadio = document.getElementById('darkThemeRadio');
     if (lightRadio) lightRadio.addEventListener('change', () => applyTheme('light'));
     if (darkRadio) darkRadio.addEventListener('change', () => applyTheme('dark'));
+    
+    // Admin upgrade listener
     if (DOM.adminUpgradeBtn) DOM.adminUpgradeBtn.addEventListener('click', handleAdminUpgrade);
+    
+    // Forum listener
     if (DOM.postForm) DOM.postForm.addEventListener('submit', handlePostSubmit);
+    
+    // User management listeners
+    if (DOM.userForm) DOM.userForm.addEventListener('submit', handleUserFormSubmit);
+    if (DOM.clearUserFormBtn) DOM.clearUserFormBtn.addEventListener('click', clearUserForm);
+
+     // User Book management listeners ("My Books" page)
+    if (DOM.myBookForm) DOM.myBookForm.addEventListener('submit', handleMyBookFormSubmit);
+    if (DOM.clearMyBookFormBtn) DOM.clearMyBookFormBtn.addEventListener('click', clearMyBookForm); 
+
+    // Admin Book management listeners ("Manage Books" page)
+    if (DOM.adminBookForm) DOM.adminBookForm.addEventListener('submit', handleAdminBookFormSubmit); 
+    if (DOM.clearAdminBookFormBtn) DOM.clearAdminBookFormBtn.addEventListener('click', clearAdminBookForm); 
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -781,4 +1376,5 @@ document.addEventListener('DOMContentLoaded', () => {
     addAllEventListeners();
     const savedTheme = localStorage.getItem('bookstore_theme') || 'light';
     applyTheme(savedTheme);
+    // Initial UI update is handled by onAuthStateChanged
 });
