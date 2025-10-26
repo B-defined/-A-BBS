@@ -20,22 +20,32 @@ function initializeDOMElements() {
     ];
     ids.forEach(id => {
         const camelCaseId = id.replace(/-([a-z])/g, g => g[1].toUpperCase());
-        DOM[camelCaseId] = document.getElementById(id);
+        // Add checks to prevent errors if an element is missing
+        const element = document.getElementById(id);
+        if (element) {
+            DOM[camelCaseId] = element;
+        } else {
+            console.warn(`Element with ID "${id}" not found.`);
+        }
     });
 }
 
 // --- TOAST NOTIFICATION ---
 function showToast(message, type = 'info', duration = 3000) {
     const container = document.getElementById('toast-container');
-    if (!container) return;
+    if (!container) {
+        console.error("Toast container not found!");
+        return; 
+    }
     const toast = document.createElement('div');
     toast.className = `toast-notification ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => toast.classList.add('show'), 10); // Trigger animation
     setTimeout(() => {
         toast.classList.remove('show');
-        toast.addEventListener('transitionend', () => toast.remove());
+        // Remove element after transition finishes
+        toast.addEventListener('transitionend', () => toast.remove()); 
     }, duration);
 }
 
@@ -44,12 +54,21 @@ let currentPageId = null;
 function showLoader(show) { if (DOM.loader) DOM.loader.classList.toggle('truly-hidden', !show); }
 
 function showPage(pageId) {
-    if (currentPageId === pageId) return;
+    // Basic check if pageId exists
+    if (!document.getElementById(pageId)) {
+        console.error(`Attempted to show non-existent page: ${pageId}`);
+        // Fallback to a default page
+        if (auth.currentUser) showPage('home');
+        else showPage('about');
+        return;
+    }
+
+    if (currentPageId === pageId) return; // Don't re-render if already on the page
 
     const adminPages = ['feedback-inbox', 'manage-users', 'manage-books']; 
     const userPages = ['my-books', 'forum', 'settings', 'submit-feedback']; 
 
-    // Kiểm tra quyền truy cập trước
+    // Check permissions before proceeding
     if ((adminPages.includes(pageId) || userPages.includes(pageId)) && !auth.currentUser) {
          return showToast('Bạn cần đăng nhập để truy cập trang này.', 'error');
     }
@@ -57,44 +76,51 @@ function showPage(pageId) {
         return showToast('Bạn không có quyền truy cập trang này.', 'error');
     }
 
-    // Ẩn trang hiện tại
+    // Hide the current page smoothly
     if (currentPageId) {
         const currentPageElement = document.getElementById(currentPageId);
         if (currentPageElement) {
             currentPageElement.classList.add('hidden');
+            // Use 'transitionend' for more reliable hiding after animation
+            const hideHandler = () => {
+                currentPageElement.classList.add('truly-hidden');
+                currentPageElement.removeEventListener('transitionend', hideHandler);
+            };
+            // Add a fallback timeout in case transitionend doesn't fire (e.g., element removed)
             setTimeout(() => {
-                // Check again in case the page changed quickly
-                if(currentPageElement.classList.contains('hidden')) { 
-                   currentPageElement.classList.add('truly-hidden');
-                }
-            }, 400); // Duration should match CSS transition
+                 if (currentPageElement.classList.contains('hidden')) {
+                     currentPageElement.classList.add('truly-hidden');
+                 }
+            }, 500); // Slightly longer than CSS transition
+             currentPageElement.addEventListener('transitionend', hideHandler);
         }
     }
 
-    // Hiển thị trang mới
+    // Show the new page
     const newPageElement = document.getElementById(pageId);
     if (newPageElement) {
-        newPageElement.classList.remove('truly-hidden');
-        // Delay removing 'hidden' to allow opacity transition
-        setTimeout(() => newPageElement.classList.remove('hidden'), 10); 
+        // Ensure it's truly hidden first, then remove hidden for transition
+        newPageElement.classList.add('truly-hidden'); 
+        newPageElement.classList.remove('hidden'); // Allow transition to start from opacity 0
+        // Use requestAnimationFrame to ensure the browser processes the style changes
+        requestAnimationFrame(() => {
+            newPageElement.classList.remove('truly-hidden');
+            requestAnimationFrame(() => {
+                 // Removing 'hidden' triggers the opacity transition defined in CSS
+                 // No need for the timeout here if CSS handles the transition properly
+            });
+        });
         currentPageId = pageId;
 
-        // Tải dữ liệu cần thiết cho trang mới
-        if (pageId === 'my-books') displayMyBooks();        // Hiển thị sách của user
-        if (pageId === 'manage-books') displayAllUserBooks(); // Hiển thị tất cả sách user (admin)
+        // Load data specific to the new page
+        if (pageId === 'my-books') displayMyBooks();        
+        if (pageId === 'manage-books') displayAllUserBooks(); 
         if (pageId === 'manage-users') displayUsers(); 
         if (pageId === 'forum') displayForumPosts();
         if (pageId === 'feedback-inbox' && window.currentUserRole === 'admin') displayFeedbacks();
         if (pageId === 'settings') displayUserSettings();
-    } else {
-        console.error(`Page with ID "${pageId}" not found.`);
-        // Optionally show a default page like 'home' or 'about' for guests
-        if (!auth.currentUser) {
-            showPage('about');
-        } else {
-            showPage('home');
-        }
-    }
+    } 
+    // No 'else' needed here, error handled at the beginning
 }
 
 
@@ -148,9 +174,12 @@ function displayBooks(books, container) {
         const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg` : 'https://via.placeholder.com/240x360.png?text=No+Image';
         const bookElement = document.createElement('div');
         bookElement.className = 'book';
-        // Use book.key for OpenLibrary books
+        // Use book.key for OpenLibrary books, book.id for Firestore books
         const bookIdentifier = book.key ? `'${book.key}'` : (book.id ? `'${book.id}'` : null); 
-        if (!bookIdentifier) return; // Skip if no identifier
+        if (!bookIdentifier) {
+            console.warn("Skipping book due to missing identifier:", book);
+            return; // Skip if no identifier
+        }
 
         bookElement.innerHTML = `
             ${isAdmin ? `<div class="admin-controls"><button class="edit-btn" onclick="handleEditBook(${bookIdentifier})">✏️</button><button class="delete-btn" onclick="handleDeleteBook(${bookIdentifier})">🗑️</button></div>` : ''}
@@ -187,19 +216,15 @@ async function showBookDetail(bookOrDocId) {
             coverUrl = bookData.coverUrl || 'https://via.placeholder.com/250x380.png?text=No+Image';
         } else { 
             const bookKey = bookOrDocId; 
-            // Note: Admin edits on OL books are not implemented with Firestore in this version
-            // const ls = { get: (key, defaultValue = {}) => JSON.parse(localStorage.getItem(key)) || defaultValue };
-            // const editedBooks = ls.get('bookstore_editedBooks'); 
-            // const editedData = editedBooks[bookKey];
-
+            // Admin edits on OL books are not stored in Firestore in this version
             const bookDetails = await fetchBookDetailsAPI(bookKey);
             if (!bookDetails) throw new Error('Book not found in OpenLibrary');
             
-            title = /*editedData?.title ||*/ bookDetails.title;
-            authors = /*editedData?.authors ||*/ (bookDetails.authors ? bookDetails.authors.map(a => a.key).join(', ').replace('/authors/', '') : 'N/A');
+            title = bookDetails.title;
+            authors = (bookDetails.authors ? bookDetails.authors.map(a => a.key).join(', ').replace('/authors/', '') : 'N/A');
             publishYear = bookDetails.first_publish_year || 'N/A';
-            description = /*editedData?.description ||*/ (typeof bookDetails.description === 'string' ? bookDetails.description : (bookDetails.description?.value || 'Không có mô tả.'));
-            coverUrl = /*editedData?.coverUrl ||*/ (bookDetails.covers?.[0] ? `https://covers.openlibrary.org/b/id/${bookDetails.covers[0]}-L.jpg` : 'https://via.placeholder.com/250x380.png?text=No+Image');
+            description = (typeof bookDetails.description === 'string' ? bookDetails.description : (bookDetails.description?.value || 'Không có mô tả.'));
+            coverUrl = (bookDetails.covers?.[0] ? `https://covers.openlibrary.org/b/id/${bookDetails.covers[0]}-L.jpg` : 'https://via.placeholder.com/250x380.png?text=No+Image');
         }
 
         const tikiSearchUrl = `https://tiki.vn/search?q=${encodeURIComponent(title)}`;
@@ -231,7 +256,6 @@ async function showBookDetail(bookOrDocId) {
     } catch (error) {
         console.error("Lỗi khi hiển thị chi tiết sách:", error);
         showToast('Không thể tải chi tiết sách.', 'error');
-        // If details fail, maybe go back or show home
         goBackOrHome();
     } finally {
         showLoader(false);
@@ -239,22 +263,22 @@ async function showBookDetail(bookOrDocId) {
 }
 
 function goBackOrHome() {
-    // Simple implementation: always go home
-    showPage('home'); 
-    // More complex: could check previous page state if stored
+    // Simple implementation: always go home, safer fallback
+    showPage(auth.currentUser ? 'home' : 'about'); 
 }
 
 
 // --- FEEDBACK MANAGEMENT with FIREBASE ---
 async function handleFeedbackSubmit(event) {
     event.preventDefault();
+     if (!DOM.feedbackForm) return; // Check if form exists
     const button = event.target.querySelector('button[type="submit"]');
     setButtonLoading(button, true);
 
     const feedbackData = {
-        name: event.target.name.value,
-        email: event.target.email.value,
-        message: event.target.message.value,
+        name: DOM.feedbackForm.querySelector('#name').value,
+        email: DOM.feedbackForm.querySelector('#email').value,
+        message: DOM.feedbackForm.querySelector('#message').value,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         user: auth.currentUser ? auth.currentUser.email : "Guest"
     };
@@ -373,7 +397,10 @@ async function handleForgotPassword(event) {
     event.preventDefault();
     const form = event.target;
     const button = form.querySelector('button[type="submit"]');
-    const email = form.querySelector('#forgot-password-email').value;
+    const emailInput = form.querySelector('#forgot-password-email');
+    if (!emailInput) return; // Safety check
+    const email = emailInput.value;
+
 
     setButtonLoading(button, true, "Đang gửi...");
 
@@ -398,8 +425,13 @@ async function handleChangePassword(event) {
     event.preventDefault();
     const form = event.target;
     const button = form.querySelector('button[type="submit"]');
-    const newPassword = form.querySelector('#new-password').value;
-    const confirmPassword = form.querySelector('#confirm-new-password').value;
+    const newPasswordInput = form.querySelector('#new-password');
+    const confirmPasswordInput = form.querySelector('#confirm-new-password');
+    if(!newPasswordInput || !confirmPasswordInput) return; // Safety check
+
+    const newPassword = newPasswordInput.value;
+    const confirmPassword = confirmPasswordInput.value;
+
 
     if (newPassword.length < 6) {
         showToast('Mật khẩu mới phải có ít nhất 6 ký tự.', 'error');
@@ -509,7 +541,11 @@ function updateUIForUser(userData) {
     if (DOM.loginLink) DOM.loginLink.classList.add('truly-hidden');
     if (DOM.userInfo) DOM.userInfo.classList.remove('truly-hidden');
     
-    if (DOM.userDropdown) DOM.userDropdown.innerText = `Chào, ${userData.username}`;
+    // Update dropdown text with icon
+    if (DOM.userDropdown) {
+        DOM.userDropdown.innerHTML = `<i class="fas fa-user me-1"></i> Chào, ${userData.username}`;
+    }
+
     const isAdmin = userData.role === 'admin';
     window.currentUserRole = isAdmin ? 'admin' : 'user'; // Ensure role is set correctly
     document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('truly-hidden', !isAdmin));
@@ -730,13 +766,18 @@ async function performSearch(query) {
 // --- FORUM FUNCTIONS ---
 async function handlePostSubmit(event) {
     event.preventDefault();
-    if (!auth.currentUser) return showToast('Bạn cần đăng nhập để đăng bài!', 'error');
+    if (!auth.currentUser || !DOM.postForm) return showToast('Bạn cần đăng nhập để đăng bài!', 'error');
 
     const button = event.target.querySelector('button[type="submit"]');
     setButtonLoading(button, true);
 
-    const title = DOM.postForm.querySelector('#post-title').value;
-    const content = DOM.postForm.querySelector('#post-content').value;
+    const titleInput = DOM.postForm.querySelector('#post-title');
+    const contentInput = DOM.postForm.querySelector('#post-content');
+    if(!titleInput || !contentInput) return; // Safety check
+
+    const title = titleInput.value;
+    const content = contentInput.value;
+
 
     try {
         const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
@@ -865,8 +906,11 @@ async function handleCommentSubmit(event, postId) {
     const form = event.target;
     const button = form.querySelector('button[type="submit"]');
     setButtonLoading(button, true);
+    
+    const textInput = form.querySelector('#comment-text');
+    if(!textInput) return; // Safety check
+    const text = textInput.value;
 
-    const text = form.querySelector('#comment-text').value;
     if (!text.trim()) { // Basic validation
          showToast('Vui lòng nhập nội dung bình luận.', 'error');
          setButtonLoading(button, false);
@@ -905,6 +949,11 @@ async function displayUsers() {
         const snapshot = await db.collection('users').get();
         snapshot.forEach(doc => {
             const user = doc.data();
+             // Basic check if user data is valid
+            if (!user || !user.username || !user.email || !user.role) {
+                console.warn("Skipping invalid user data:", doc.id, user);
+                return; 
+            }
             const isCurrentUser = auth.currentUser && auth.currentUser.uid === doc.id;
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -928,13 +977,25 @@ async function displayUsers() {
 
 function editUser(id, username, email, role) {
     if (!DOM.userForm) return;
-    DOM.userForm.querySelector('#user-id-input').value = id;
-    DOM.userForm.querySelector('#user-username-input').value = username;
-    DOM.userForm.querySelector('#user-email-input').value = email;
-    DOM.userForm.querySelector('#user-email-input').disabled = true; // Cannot change email via this form
-    DOM.userForm.querySelector('#user-password-input').value = ''; // Clear password field for editing
-    DOM.userForm.querySelector('#user-password-input').placeholder = 'Để trống nếu không đổi';
-    DOM.userForm.querySelector('#user-role-select').value = role;
+    // Ensure input elements exist before accessing value
+    const idInput = DOM.userForm.querySelector('#user-id-input');
+    const usernameInput = DOM.userForm.querySelector('#user-username-input');
+    const emailInput = DOM.userForm.querySelector('#user-email-input');
+    const passwordInput = DOM.userForm.querySelector('#user-password-input');
+    const roleSelect = DOM.userForm.querySelector('#user-role-select');
+
+    if (idInput) idInput.value = id;
+    if (usernameInput) usernameInput.value = username;
+    if (emailInput) {
+        emailInput.value = email;
+        emailInput.disabled = true; // Cannot change email via this form
+    }
+    if (passwordInput) {
+        passwordInput.value = ''; // Clear password field for editing
+        passwordInput.placeholder = 'Để trống nếu không đổi';
+    }
+    if (roleSelect) roleSelect.value = role;
+    
     window.scrollTo(0, 0); // Scroll to top
 }
 
@@ -956,9 +1017,13 @@ async function deleteUser(id, username) {
 function clearUserForm() {
     if (!DOM.userForm) return;
     DOM.userForm.reset();
-    DOM.userForm.querySelector('#user-id-input').value = '';
-    DOM.userForm.querySelector('#user-email-input').disabled = false;
-    DOM.userForm.querySelector('#user-password-input').placeholder = 'Ít nhất 6 ký tự';
+    const idInput = DOM.userForm.querySelector('#user-id-input');
+    const emailInput = DOM.userForm.querySelector('#user-email-input');
+    const passwordInput = DOM.userForm.querySelector('#user-password-input');
+
+    if(idInput) idInput.value = '';
+    if(emailInput) emailInput.disabled = false;
+    if(passwordInput) passwordInput.placeholder = 'Ít nhất 6 ký tự';
 }
 
 async function handleUserFormSubmit(event) {
@@ -967,11 +1032,18 @@ async function handleUserFormSubmit(event) {
     const button = event.target.querySelector('button[type="submit"]');
     setButtonLoading(button, true);
 
-    const userId = DOM.userForm.querySelector('#user-id-input').value;
-    const username = DOM.userForm.querySelector('#user-username-input').value;
-    const email = DOM.userForm.querySelector('#user-email-input').value;
-    const role = DOM.userForm.querySelector('#user-role-select').value;
-    // Password should not be handled here for adding/editing users as admin from client-side
+    // Get form elements safely
+    const userIdInput = DOM.userForm.querySelector('#user-id-input');
+    const usernameInput = DOM.userForm.querySelector('#user-username-input');
+    const emailInput = DOM.userForm.querySelector('#user-email-input');
+    const roleSelect = DOM.userForm.querySelector('#user-role-select');
+    if(!userIdInput || !usernameInput || !emailInput || !roleSelect) return; // Safety check
+
+    const userId = userIdInput.value;
+    const username = usernameInput.value;
+    const email = emailInput.value;
+    const role = roleSelect.value;
+    // Password should not be handled here
 
     try {
         if (userId) { // --- UPDATE EXISTING USER (Role and Username only) ---
@@ -993,7 +1065,12 @@ async function handleUserFormSubmit(event) {
              }
              
              // Add user data to Firestore. Auth account creation requires Admin SDK.
-             const newUserRef = await db.collection('users').add({ username, email, role }); 
+             const newUserRef = await db.collection('users').add({ 
+                 username, 
+                 email, 
+                 role, 
+                 createdAt: firebase.firestore.FieldValue.serverTimestamp() // Add creation time
+             }); 
              showToast(`Tạo bản ghi người dùng mới ${username} thành công! Lưu ý: Chưa tạo tài khoản đăng nhập.`, 'success', 5000);
         }
         clearUserForm();
@@ -1003,7 +1080,7 @@ async function handleUserFormSubmit(event) {
         showToast('Đã có lỗi xảy ra khi lưu người dùng.', 'error');
     } finally {
         // Ensure loading always stops, even if validation fails early
-        if (button.disabled) { 
+        if (button && button.disabled) { // Check if button exists before accessing disabled
             setButtonLoading(button, false);
         }
     }
@@ -1052,7 +1129,7 @@ async function displayMyBooks() {
     } catch (error) {
         console.error("Lỗi khi tải sách của tôi:", error);
         // Provide more specific error if permission denied
-        if (error.code === 'permission-denied' || error.message.includes('permission')) {
+        if (error.code === 'permission-denied' || (error.message && error.message.includes('permission'))) {
              showToast('Lỗi quyền truy cập khi tải sách. Vui lòng kiểm tra Quy tắc Bảo mật Firestore.', 'error', 5000);
         } else {
              showToast('Không thể tải danh sách sách của bạn.', 'error');
@@ -1075,11 +1152,19 @@ async function editMyBook(bookId) {
                  showToast('Bạn không có quyền sửa sách này.', 'error');
                  return;
             }
-            DOM.myBookForm.querySelector('#my-book-id-input').value = bookId;
-            DOM.myBookForm.querySelector('#my-book-title-input').value = bookData.title;
-            DOM.myBookForm.querySelector('#my-book-author-input').value = bookData.authors || '';
-            DOM.myBookForm.querySelector('#my-book-cover-input').value = bookData.coverUrl || '';
-            DOM.myBookForm.querySelector('#my-book-desc-input').value = bookData.description || '';
+            // Safely access form elements
+            const idInput = DOM.myBookForm.querySelector('#my-book-id-input');
+            const titleInput = DOM.myBookForm.querySelector('#my-book-title-input');
+            const authorInput = DOM.myBookForm.querySelector('#my-book-author-input');
+            const coverInput = DOM.myBookForm.querySelector('#my-book-cover-input');
+            const descInput = DOM.myBookForm.querySelector('#my-book-desc-input');
+
+            if(idInput) idInput.value = bookId;
+            if(titleInput) titleInput.value = bookData.title;
+            if(authorInput) authorInput.value = bookData.authors || '';
+            if(coverInput) coverInput.value = bookData.coverUrl || '';
+            if(descInput) descInput.value = bookData.description || '';
+            
             window.scrollTo(0, 0); // Scroll to top of page
         } else {
             showToast('Không tìm thấy sách để sửa.', 'error');
@@ -1122,7 +1207,8 @@ async function deleteMyBook(bookId, title) {
 function clearMyBookForm() {
     if (!DOM.myBookForm) return;
     DOM.myBookForm.reset();
-    DOM.myBookForm.querySelector('#my-book-id-input').value = ''; 
+    const idInput = DOM.myBookForm.querySelector('#my-book-id-input');
+    if(idInput) idInput.value = ''; 
 }
 
 async function handleMyBookFormSubmit(event) {
@@ -1131,11 +1217,21 @@ async function handleMyBookFormSubmit(event) {
     const button = event.target.querySelector('button[type="submit"]');
     setButtonLoading(button, true);
 
-    const bookId = DOM.myBookForm.querySelector('#my-book-id-input').value;
-    const title = DOM.myBookForm.querySelector('#my-book-title-input').value;
-    const authors = DOM.myBookForm.querySelector('#my-book-author-input').value;
-    const coverUrl = DOM.myBookForm.querySelector('#my-book-cover-input').value;
-    const description = DOM.myBookForm.querySelector('#my-book-desc-input').value;
+    // Safely access form elements
+    const idInput = DOM.myBookForm.querySelector('#my-book-id-input');
+    const titleInput = DOM.myBookForm.querySelector('#my-book-title-input');
+    const authorInput = DOM.myBookForm.querySelector('#my-book-author-input');
+    const coverInput = DOM.myBookForm.querySelector('#my-book-cover-input');
+    const descInput = DOM.myBookForm.querySelector('#my-book-desc-input');
+    if (!idInput || !titleInput || !authorInput || !coverInput || !descInput) return; // Safety check
+
+
+    const bookId = idInput.value;
+    const title = titleInput.value;
+    const authors = authorInput.value;
+    const coverUrl = coverInput.value;
+    const description = descInput.value;
+
 
     try {
         const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
@@ -1149,8 +1245,6 @@ async function handleMyBookFormSubmit(event) {
             description,
             addedByUserId: auth.currentUser.uid, // Always set/update owner ID
             addedByUsername: username // Always set/update owner username
-            // createdAt is only set on creation
-            // lastUpdatedAt could be added here: firebase.firestore.FieldValue.serverTimestamp()
         };
 
         if (bookId) { // --- CẬP NHẬT SÁCH ---
@@ -1209,7 +1303,7 @@ async function displayAllUserBooks() {
         });
     } catch (error) {
         console.error("Lỗi khi tải tất cả sách user:", error);
-         if (error.code === 'permission-denied' || error.message.includes('permission')) {
+         if (error.code === 'permission-denied' || (error.message && error.message.includes('permission'))) {
              showToast('Lỗi quyền truy cập khi tải sách. Vui lòng kiểm tra Quy tắc Bảo mật Firestore.', 'error', 5000);
          } else {
             showToast('Không thể tải danh sách sách.', 'error');
@@ -1226,11 +1320,19 @@ async function editAnyUserBook(bookId) {
         const bookDoc = await db.collection('user_books').doc(bookId).get();
         if (bookDoc.exists) {
             const bookData = bookDoc.data();
-            DOM.adminBookForm.querySelector('#admin-book-id-input').value = bookId;
-            DOM.adminBookForm.querySelector('#admin-book-title-input').value = bookData.title;
-            DOM.adminBookForm.querySelector('#admin-book-author-input').value = bookData.authors || '';
-            DOM.adminBookForm.querySelector('#admin-book-cover-input').value = bookData.coverUrl || '';
-            DOM.adminBookForm.querySelector('#admin-book-desc-input').value = bookData.description || '';
+            // Safely access form elements
+            const idInput = DOM.adminBookForm.querySelector('#admin-book-id-input');
+            const titleInput = DOM.adminBookForm.querySelector('#admin-book-title-input');
+            const authorInput = DOM.adminBookForm.querySelector('#admin-book-author-input');
+            const coverInput = DOM.adminBookForm.querySelector('#admin-book-cover-input');
+            const descInput = DOM.adminBookForm.querySelector('#admin-book-desc-input');
+
+            if(idInput) idInput.value = bookId;
+            if(titleInput) titleInput.value = bookData.title;
+            if(authorInput) authorInput.value = bookData.authors || '';
+            if(coverInput) coverInput.value = bookData.coverUrl || '';
+            if(descInput) descInput.value = bookData.description || '';
+            
             window.scrollTo(0, 0); // Scroll to top
         } else {
             showToast('Không tìm thấy sách để sửa.', 'error');
@@ -1265,7 +1367,8 @@ async function deleteAnyUserBook(bookId, title) {
 function clearAdminBookForm() {
     if (!DOM.adminBookForm) return;
     DOM.adminBookForm.reset();
-    DOM.adminBookForm.querySelector('#admin-book-id-input').value = ''; 
+    const idInput = DOM.adminBookForm.querySelector('#admin-book-id-input');
+    if(idInput) idInput.value = ''; 
 }
 
 async function handleAdminBookFormSubmit(event) {
@@ -1274,11 +1377,19 @@ async function handleAdminBookFormSubmit(event) {
     const button = event.target.querySelector('button[type="submit"]');
     setButtonLoading(button, true);
 
-    const bookId = DOM.adminBookForm.querySelector('#admin-book-id-input').value;
-    const title = DOM.adminBookForm.querySelector('#admin-book-title-input').value;
-    const authors = DOM.adminBookForm.querySelector('#admin-book-author-input').value;
-    const coverUrl = DOM.adminBookForm.querySelector('#admin-book-cover-input').value;
-    const description = DOM.adminBookForm.querySelector('#admin-book-desc-input').value;
+    // Safely access form elements
+    const idInput = DOM.adminBookForm.querySelector('#admin-book-id-input');
+    const titleInput = DOM.adminBookForm.querySelector('#admin-book-title-input');
+    const authorInput = DOM.adminBookForm.querySelector('#admin-book-author-input');
+    const coverInput = DOM.adminBookForm.querySelector('#admin-book-cover-input');
+    const descInput = DOM.adminBookForm.querySelector('#admin-book-desc-input');
+     if (!idInput || !titleInput || !authorInput || !coverInput || !descInput) return; // Safety check
+
+    const bookId = idInput.value;
+    const title = titleInput.value;
+    const authors = authorInput.value;
+    const coverUrl = coverInput.value;
+    const description = descInput.value;
 
     if (!bookId) {
         showToast('Vui lòng chọn sách từ bảng bên dưới để sửa.', 'error');
@@ -1372,9 +1483,9 @@ function addAllEventListeners() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    initializeDOMElements();
-    addAllEventListeners();
+    initializeDOMElements(); // Make sure elements are found first
+    addAllEventListeners(); // Then add listeners
     const savedTheme = localStorage.getItem('bookstore_theme') || 'light';
     applyTheme(savedTheme);
-    // Initial UI update is handled by onAuthStateChanged
+    // Initial UI update is handled by onAuthStateChanged after Firebase initializes
 });

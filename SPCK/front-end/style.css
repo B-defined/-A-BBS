@@ -1,4 +1,4 @@
-/* --- Global Styles & Theme Variables --- */
+
 :root {
     --primary-color: #4a4e69;
     --secondary-color: #22223b;
@@ -22,7 +22,7 @@
     --shadow-color: rgba(0,0,0,0.2);
     --input-background: #4a4e69;
     --input-border: #9a8c98;
-    --navbar-background-color: #483d8b; /* Dark Slate Blue */
+    --navbar-background-color: #483d8b; 
 }
 
 body {
@@ -38,7 +38,7 @@ main {
     flex: 1;
 }
 
-/* --- Header, Footer & Nav --- */
+
 header {
     background: var(--navbar-background-color);
     color: #fff;
@@ -55,8 +55,8 @@ header {
 
 footer {
     background: var(--secondary-color);
-    color: #fff; /* Ensure footer text is visible in light mode */
-    padding: 1rem 0; /* Add some padding */
+    color: #fff;
+    padding: 1rem 0; 
 }
 #search-form {
     width: 50%;
@@ -71,16 +71,16 @@ footer {
     background-color: var(--input-background);
     color: var(--text-color);
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.25rem rgba(154, 140, 152, 0.25); /* Adjusted shadow for both themes */
+    box-shadow: 0 0 0 0.25rem rgba(154, 140, 152, 0.25);
 }
-/* Style for disabled email input */
+
 #user-email-input:disabled {
     background-color: var(--background-color);
     opacity: 0.7;
 }
 
 
-/* --- Page & Layout with Transitions --- */
+
 .container {
     width: 95%;
     max-width: 1400px;
@@ -102,7 +102,6 @@ footer {
     display: none !important;
 }
 
-/* --- Book Card & Section --- */
 .book-section {
     display: flex;
     flex-wrap: wrap;
@@ -138,18 +137,18 @@ footer {
     font-size: 1.1em;
     color: var(--text-color);
     margin: 15px 0 5px 0;
-    height: 48px; /* Limit height to 2 lines approx */
+    height: 48px; 
     overflow: hidden;
-    text-overflow: ellipsis; /* Add ellipsis if text overflows */
+    text-overflow: ellipsis; 
     display: -webkit-box;
-    -webkit-line-clamp: 2; /* Limit to 2 lines */
+    -webkit-line-clamp: 2; 
     -webkit-box-orient: vertical;
     cursor: pointer;
 }
 .book .author {
     font-size: 0.9em;
     color: #888;
-    height: 36px; /* Limit height */
+    height: 36px; 
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
@@ -157,7 +156,7 @@ footer {
     -webkit-box-orient: vertical;
 }
 
-/* --- Admin-only UI --- */
+
 .admin-controls {
     position: absolute;
     top: 5px;
@@ -173,7 +172,6 @@ footer {
 .admin-controls .edit-btn { color: #007bff; }
 .admin-controls .delete-btn { color: #dc3545; }
 
-/* --- Book Detail Page --- */
 #book-detail-content { display: flex; flex-wrap: wrap; gap: 30px; align-items: flex-start; }
 .book-detail-img { flex: 0 0 250px; /* Fixed width */ text-align: center; }
 .book-detail-img img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 6px 12px rgba(0,0,0,0.2); }
@@ -184,24 +182,23 @@ footer {
 .book-detail-info h3 { margin-top: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem; }
 .book-detail-info .description { text-align: justify; line-height: 1.6; }
 
-/* --- Auth Forms --- */
+
 .auth-container { max-width: 450px; margin: auto; }
 
-/* --- Feedback Inbox --- */
+
 #feedback-list .card { margin-bottom: 15px; background-color: var(--background-color); }
 #feedback-list .card-header { font-weight: bold; background-color: var(--page-background-color); }
 
-/* --- Manage Books Form --- */
 .add-book-form { 
     max-width: 700px; 
     margin: 20px auto; 
     padding: 20px; 
     background: var(--background-color); 
     border-radius: 8px; 
-    border: 1px solid var(--border-color); /* Added border like other forms */
+    border: 1px solid var(--border-color);
 }
 
-/* --- Toast Notification Styles --- */
+
 #toast-container {
     position: fixed;
     top: 20px;
@@ -226,7 +223,7 @@ footer {
 .toast-notification.error { background-color: #dc3545; }
 .toast-notification.info { background-color: #17a2b8; }
 
-/* --- Navbar Dropdown Menu Customization --- */
+
 .navbar .dropdown-menu {
     background-color: #ffffff;
     border: 1px solid #e0e0e0;
@@ -254,7 +251,6 @@ footer {
 }
 
 
-/* --- About Page Styles --- */
 .team-member { text-align: center; margin-bottom: 20px; }
 .team-member img {
     width: 150px;
@@ -267,7 +263,7 @@ footer {
 }
 #about img { max-width: 100%; border-radius: 8px; }
 
-/* --- Settings Page Styles --- */
+
 .settings-block {
     background-color: var(--background-color);
     padding: 25px;
@@ -282,7 +278,7 @@ footer {
     color: var(--primary-color);
 }
 
-/* --- Forum Styles --- */
+
 .add-post-form {
     background-color: var(--background-color);
     padding: 20px;
@@ -320,14 +316,14 @@ footer {
     text-align: justify;
     padding: 20px 0;
     border-bottom: 1px solid var(--border-color);
-    margin-bottom: 20px; /* Add margin below content */
+    margin-bottom: 20px;
 }
 
 .comments-section {
     margin-top: 30px;
 }
 .comments-section h4 {
-    margin-bottom: 1rem; /* Add space below "Bình luận" heading */
+    margin-bottom: 1rem; 
 }
 
 .comment-item {
@@ -342,15 +338,14 @@ footer {
     font-weight: bold;
     color: var(--primary-color);
     font-size: 0.9em;
-    margin-bottom: 0.25rem; /* Add space below author */
+    margin-bottom: 0.25rem;
 }
 
 .comment-text {
     margin-top: 5px;
-    line-height: 1.5; /* Improve readability */
+    line-height: 1.5;
 }
 
-/* --- Search Suggestion Styles --- */
 #search-suggestions {
     position: absolute;
     top: 100%;
@@ -389,7 +384,7 @@ footer {
     margin-right: 10px;
 }
 
-/* --- User Management Styles --- */
+
 .user-management-form {
     background-color: var(--background-color);
     padding: 20px;
