@@ -1,4 +1,3 @@
-
 :root {
     --primary-color: #4a4e69;
     --secondary-color: #22223b;
@@ -408,5 +407,5 @@ footer {
 }
 [data-theme='dark'] .table {
     --bs-table-striped-color: var(--text-color);
-    --bs-table-hover-color: var(--text-color)};
-
+    --bs-table-hover-color: var(--text-color);
+}
