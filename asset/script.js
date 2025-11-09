@@ -1486,5 +1486,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDOMElements(); // Make sure elements are found first
     addAllEventListeners(); // Then add listeners
     const savedTheme = localStorage.getItem('bookstore_theme') || 'light';
-    applyTheme(savedTheme);});
-
+    applyTheme(savedTheme);
+});
